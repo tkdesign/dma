@@ -1,0 +1,29 @@
+<aside class="col-lg-3 d-lg-block my-4">
+    <div class="offcanvas-lg offcanvas-start" data-bs-scroll="true" data-bs-backdrop="false" tabindex="-1"
+        id="offcanvasSidebar" aria-labelledby="offcanvasSidebarLabel">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="offcanvasSidebarLabel">MENU</h5>
+            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"
+                aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+            <div class="list-group list-group-flush w-100">
+                <a href="{{ url_for('dashboard.dashboard_index') }}" class="list-group-item list-group-item-action">
+                    <i class="bi bi-speedometer2 me-2"></i> Dashboard
+                </a>
+                <a href="{{ url_for('reports.reports_index') }}" class="list-group-item list-group-item-action">
+                    <i class="bi bi-file-earmark-bar-graph me-2"></i> Reports
+                </a>
+                <a href="{{ url_for('auth.auth_settings') }}" class="list-group-item list-group-item-action">
+                    <i class="bi bi-gear me-2"></i> Settings
+                </a>
+                <a href="{{ url_for('auth.auth_profile') }}" class="list-group-item list-group-item-action">
+                    <i class="bi bi-person me-2"></i> Profile
+                </a>
+                <a href="{{ url_for('auth.auth_logout') }}" class="list-group-item list-group-item-action">
+                    <i class="bi bi-box-arrow-right me-2"></i> Logout
+                </a>
+            </div>
+        </div>
+    </div>
+</aside>

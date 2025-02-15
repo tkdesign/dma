@@ -1,2 +1,5 @@
 /.idea/
 /.venv/
+/dmaenv/
+/__pycache__/
+config.py

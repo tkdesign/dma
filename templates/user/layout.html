@@ -1,0 +1,10 @@
+{% include 'user/header.html' %}
+<div class="container-fluid">
+    <div class="row">
+        {% include 'user/vmenu.html' %}
+        <main class="col-lg-9 col-12 my-4">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</div>
+{% include 'user/footer.html' %}

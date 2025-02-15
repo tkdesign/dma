@@ -1,0 +1,98 @@
+{% extends "guest/layout.html" %}
+{% block content %}
+    <div class="container">
+        <div class="row d-flex justify-content-center">
+            <div class="col-md-6">
+                <h1>Sign Up</h1>
+                <form action="{{ url_for('auth.auth_signup') }}" method="post" novalidate>
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        {{ form.email.label(class='form-label') }}<br>
+                        {{ form.email(size=32, class='form-control' + (' is-invalid' if form.email.errors else ''), value=form.email.data) }}
+                        {% if form.email.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.email.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.password.label(class='form-label') }}<br>
+                        {{ form.password(size=32, class='form-control') + (' is-invalid' if form.password.errors else '') }}
+                        {% if form.password.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.password.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        {% if form.password.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.password.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.confirm_password.label(class='form-label') }}<br>
+                        {{ form.confirm_password(size=32, class='form-control') + (' is-invalid' if form.confirm_password.errors else '') }}
+                        {% if form.confirm_password.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.confirm_password.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.first_name.label(class='form-label') }}<br>
+                        {{ form.first_name(size=32, class='form-control'  + (' is-invalid' if form.first_name.errors else ''), value=form.first_name.data) }}
+                        {% if form.first_name.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.first_name.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.last_name.label(class='form-label') }}<br>
+                        {{ form.last_name(size=32, class='form-control' + (' is-invalid' if form.last_name.errors else ''), value=form.last_name.data) }}
+                        {% if form.last_name.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.last_name.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.department.label(class='form-label') }}<br>
+                        {{ form.department(size=32, class='form-control' + (' is-invalid' if form.department.errors else ''), value=form.department.data) }}
+                        {% if form.department.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.department.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.occupation.label(class='form-label') }}<br>
+                        {{ form.occupation(size=32, class='form-control' + (' is-invalid' if form.occupation.errors else ''), value=form.occupation.data) }}
+                        {% if form.occupation.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.occupation.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">{{ form.submit(class='btn btn-primary') }}</div>
+                </form>
+            </div>
+        </div>
+    </div>
+{% endblock %}

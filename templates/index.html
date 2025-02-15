@@ -1,0 +1,64 @@
+{% extends "guest/layout.html" %}
+{% block content %}
+<div class="container-fluid">
+        <div class="row">
+                <div class="offcanvas offcanvas-start" data-bs-scroll="true" data-bs-backdrop="false" tabindex="-1"
+                    id="offcanvasSidebar" aria-labelledby="offcanvasSidebarLabel">
+                    <div class="offcanvas-header">
+                        <h5 class="offcanvas-title" id="offcanvasSidebarLabel">MENU</h5>
+                        <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"
+                            aria-label="Close"></button>
+                    </div>
+                    <div class="offcanvas-body">
+                        <div class="list-group list-group-flush w-100">
+                            <a href="{{ url_for('auth.auth_login_form') }}" class="list-group-item list-group-item-action">
+                                <i class="bi bi-box-arrow-in-right me-2"></i> Log in
+                            </a>
+                            <a href="{{ url_for('auth.auth_signup_form') }}" class="list-group-item list-group-item-action">
+                                <i class="bi bi-person-plus me-2"></i> Sign up
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            <main class="col-12 my-4">
+                <section id="hero" class="py-5 text-center">
+                    <div class="container">
+                        <h1 class="display-4">DMA e-Commerce Data Management Application</h1>
+                        <p class="lead">Manage your online sales data with ease and efficiency.</p>
+                        <a href="{{ url_for('auth.auth_signup_form') }}" class="btn btn-primary btn-lg mx-2">Get Started</a>
+                        <a href="{{ url_for('auth.auth_login_form') }}" class="btn btn-outline-primary btn-lg mx-2">Log in</a>
+                    </div>
+                </section>
+
+                <section id="features" class="py-5 bg-light">
+                    <div class="container">
+                        <div class="row">
+                            <div class="col-md-4 text-center">
+                                <i class="bi bi-database display-4 text-primary"></i>
+                                <h3>Integrated Analytical DWH</h3>
+                                <p>Centralize your data in our cutting-edge data warehouse built for rapid insights. Forget messy SQL—get straight to the core of your analytics.</p>
+                            </div>
+                            <div class="col-md-4 text-center">
+                                <i class="bi bi-gear display-4 text-primary"></i>
+                                <h3>Built-in ETL & Data Processing</h3>
+                                <p>Seamlessly ingest, transform, and crunch your data with our integrated ETL tool. No need for PowerBI headaches—just smooth, code-driven processing.</p>
+                            </div>
+                            <div class="col-md-4 text-center">
+                                <i class="bi bi-bar-chart display-4 text-primary"></i>
+                                <h3>Visual Analytics</h3>
+                                <p>Access dope dashboards, slick graphs, and rad charts—get your e-comm data served fresh for a deep dive into insights.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="about" class="py-5">
+                    <div class="container text-center">
+                        <h2>About Application</h2>
+                        <p>DMA is an open-source web app delivering a comprehensive toolkit for advanced, interactive visual analytics of e-commerce datasets.</p>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+{% endblock %}

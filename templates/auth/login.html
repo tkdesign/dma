@@ -1,0 +1,37 @@
+{% extends "guest/layout.html" %}
+{% block content %}
+    <div class="container">
+        <div class="row d-flex justify-content-center">
+            <div class="col-md-6 d-flex flex-column align-items-center">
+                <h1>Sign In</h1>
+                <form action="{{ url_for('auth.auth_login') }}" method="post" novalidate>
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        {{ form.email.label(class='form-label') }}<br>
+                        {{ form.email(size=32, class='form-control' + (' is-invalid' if form.email.errors else '')) }}
+                        {% if form.email.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.email.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.password.label(class='form-label') }}<br>
+                        {{ form.password(size=32, class='form-control' + (' is-invalid' if form.password.errors else '')) }}
+                        {% if form.password.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.password.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">{{ form.remember(class='form-check-input') }} {{ form.remember.label(class='form-check-label') }}</div>
+                    <div class="mb-3">{{ form.submit(class='btn btn-primary') }}</div>
+                </form>
+            </div>
+        </div>
+    </div>
+{% endblock %}
