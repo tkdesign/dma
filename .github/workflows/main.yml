@@ -16,10 +16,4 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /var/www/dma
-            git fetch --all
-            git reset --hard origin/main
-            source venv/bin/activate
-            pip install --upgrade -r requirements.txt            
-            sudo systemctl restart gunicorn
-            sudo systemctl restart nginx
+            /home/deploy_user/deploy_dma.sh
