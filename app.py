@@ -17,7 +17,6 @@ login_manager.login_view = 'auth.auth_login_form'
 @login_manager.user_loader
 def load_user(user_id):
     return User.get(user_id)
-# return User.query.get(user_id)
 
 home_bp = Blueprint('home', __name__, url_prefix='/')
 
