@@ -12,8 +12,8 @@ jobs:
       - name: Deploy to Server
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ secrets.REG_RU_HOST }}
+          username: ${{ secrets.REG_RU_USERNAME }}
+          key: ${{ secrets.REG_RU_SSH_KEY }}
           script: |
             /home/deploy_user/deploy_dma.sh
