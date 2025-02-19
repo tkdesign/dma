@@ -16,4 +16,5 @@ jobs:
           username: ${{ secrets.REG_RU_USERNAME }}
           key: ${{ secrets.REG_RU_SSH_KEY }}
           script: |
+            export SUDO_PASSWORD=${{ secrets.SUDO_PASSWORD }}
             /home/deploy_user/deploy_dma.sh
