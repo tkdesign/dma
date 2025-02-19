@@ -3,6 +3,7 @@ from flask_login import LoginManager, current_user, login_required
 from auth.auth import auth_blueprint
 from dashboard.dashboard import dashboard_blueprint
 from reports.reports import reports_blueprint
+from admin.admin import admin_blueprint
 from models import db, User
 
 app = Flask(__name__)
@@ -31,6 +32,7 @@ app.register_blueprint(auth_blueprint)
 app.register_blueprint(dashboard_blueprint)
 app.register_blueprint(reports_blueprint)
 app.register_blueprint(home_bp)
+app.register_blueprint(admin_blueprint)
 
 if __name__ == '__main__':
     app.run()

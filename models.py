@@ -51,27 +51,26 @@ class User(UserMixin, db.Model):
     def get(user_id):
         return User.query.get(user_id)
 
-class Dashboard(db.Model):
-    __bind_key__ = 'dwh'
-    __tablename__ = 'dashboard'
-    __table_args__ = {'schema': 'public'}
+class EtlLog(db.Model):
+    __bind_key__ = 'stage'
+    __tablename__ = 'etl_log'
+    __table_args__ = {'schema': 'dma_db_stage'}
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('public.user.id'), nullable=False)
-    name = db.Column(db.String(255), nullable=False)
-    description = db.Column(db.String(255), nullable=True)
-    active = db.Column(db.Boolean, default=True)
+    job_name = db.Column(db.String(255), nullable=False)
+    started_at = db.Column(db.DateTime, nullable=False)
+    ended_at = db.Column(db.DateTime, nullable=True)
+    status = db.Column(db.String(50), nullable=False)
+    message = db.Column(db.Text, nullable=True)
+    tables_processed = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
-    updated_at = db.Column(db.DateTime, server_default=db.func.now(), server_onupdate=db.func.now())
 
     def __repr__(self):
-        return '<Dashboard {}>'.format(self.name)
+        return '<EtlLog {}>'.format(self.job_name)
 
-    def save(self):
-        db.session.add(self)
-        db.session.commit()
+    def __init__(self, job_name, started_at, status):
+        self.job_name = job_name
+        self.started_at = started_at
+        self.status = status
 
-    def get(dashboard_id):
-        return Dashboard.query.get(dashboard_id)
-
-    def get_by_user(user_id):
-        return Dashboard.query.filter_by(user_id=user_id).all()
+    def get(log_id):
+        return EtlLog.query.get(log_id)
