@@ -2,10 +2,28 @@ from flask import Blueprint, request, jsonify, render_template, redirect, url_fo
 from flask_login import current_user, login_required
 from models import EtlLog
 from tasks import stage_reload_task, dwh_incremental_task
-from celery import chain
+from celery import chain, current_app
 from celery.result import AsyncResult
 
 admin_blueprint = Blueprint('admin', __name__)
+
+def is_task_running(*task_names):
+    inspector = current_app.control.inspect()
+    active_tasks = inspector.active() or {}
+    reserved_tasks = inspector.reserved() or {}
+
+    for task_name in task_names:
+        for worker, tasks in active_tasks.items():
+            for task in tasks:
+                if task.get("name") == task_name:
+                    return True
+
+        for worker, tasks in reserved_tasks.items():
+            for task in tasks:
+                if task.get("name") == task_name:
+                    return True
+
+    return False
 
 @admin_blueprint.route('/users', methods=['GET'])
 @login_required
@@ -54,6 +72,7 @@ def etl_data():
         data.append({
             "id": log.id,
             "job_name": log.job_name,
+            "task_id": log.task_id,
             "started_at": log.started_at.isoformat() if log.started_at else None,
             "ended_at": log.ended_at.isoformat() if log.ended_at else None,
             "status": log.status,
@@ -68,6 +87,8 @@ def etl_data():
 @login_required
 def run_etl_chain():
     if current_user.is_admin():
+        if is_task_running(stage_reload_task.name, dwh_incremental_task.name):
+            return jsonify({"error": "ETL chain is already running."}), 400
         result = chain(stage_reload_task.s(), dwh_incremental_task.s()).apply_async()
         return jsonify({"chain_task_id": result.id, "message": "ETL chain started."}), 200
     else:
@@ -80,8 +101,11 @@ def revoke_task():
     if not task_id:
         return jsonify({"error": "Task ID is required"}), 400
     task = AsyncResult(task_id)
-    task.revoke(terminate=True)
-    return jsonify({"task_id": task_id, "message": "Task revoked."}), 200
+    if task.state in ['PENDING', 'STARTED']:
+        task.revoke(terminate=True)
+        return jsonify({"task_id": task_id, "message": "Task revoked."}), 200
+    else:
+        return jsonify({"error": "Task cannot be revoked in its current state."}), 400
 
 @admin_blueprint.route('/task_status', methods=['GET'])
 @login_required

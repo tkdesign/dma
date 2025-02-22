@@ -62,6 +62,7 @@ class EtlLog(db.Model):
     status = db.Column(db.String(50), nullable=False)
     message = db.Column(db.Text, nullable=True)
     tables_processed = db.Column(db.Integer, nullable=True)
+    task_id = db.Column(db.String(36), nullable=True)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
     def __repr__(self):
