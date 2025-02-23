@@ -2,5 +2,85 @@
 {% block content %}
     <div class="container">
         <h1>Dashboard</h1>
+
+        <div class="row my-4">
+
+            <div class="row my-4">
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body align-content-center" id="carts-count">{#Loading...#}</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body align-content-center" id="orders-count">{#Loading...#}</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body align-content-center" id="total-revenue">{#Loading...#}</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body align-content-center" id="conversion-rate">{#Loading...#}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row my-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body card-with-diagram-body align-content-center" id="monthly-revenue-chart">
+                            {#Loading...#}</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body card-with-diagram-body align-content-center" id="orders-heatmap-chart">
+                            {#Loading...#}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="row my-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body card-with-diagram-body align-content-center"
+                             id="gender-distribution-chart">{#Loading...#}</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body card-with-diagram-body align-content-center" id="age-distribution-chart">
+                            {#Loading...#}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="row my-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body card-with-diagram-body align-content-center"
+                             id="gender-quartile-distribution-chart">{#Loading...#}</div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body card-with-diagram-body align-content-center" id="order-status-heatmap">
+                            {#Loading...#}</div>
+                    </div>
+                </div>
+            </div>
+
+
+            {#
+        <div id="monthly-revenue-chart"></div>
+        <div id="gender-distribution-chart"></div>
+        <div id="order-status-heatmap"></div>
+        <div id="age-distribution-chart"></div>
+#}
+        </div>
+
     </div>
+
 {% endblock %}

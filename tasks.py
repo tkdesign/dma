@@ -1,5 +1,5 @@
-# import eventlet
-# eventlet.monkey_patch()
+import hashlib
+
 from celery import Celery
 from celery.signals import task_revoked
 from celery.contrib.abortable import AbortableTask
@@ -54,6 +54,7 @@ ET_TABLES_CONFIG = {
     "ps_customer_company": {
         "select": "SELECT id_customer_company, id_customer, name, verified, active, date_add, date_upd, id_address FROM ps_customer_company",
         "convert_fields": {
+            "name": lambda x: None if pd.isnull(x) else hashlib.sha256(x.encode('utf-8')).hexdigest(),
             "verified": lambda x: None if pd.isnull(x) else bool(x),
             "active": lambda x: None if pd.isnull(x) else bool(x),
             "date_add": lambda x: None if pd.isnull(x) or x == "0000-00-00 00:00:00" else x,
@@ -280,6 +281,10 @@ def clear_stage_tables(self, tables):
             if self.is_aborted():
                 print("Task revoked.")
                 return
+            # Test some tables
+            # if table != "sg_customer_company":
+            #     continue
+            # //Test some tables
             conn.execute(text(f"TRUNCATE TABLE {table} RESTART IDENTITY CASCADE"))
             print(f"Table {table} truncated.")
 
@@ -287,6 +292,10 @@ def et_table(self, table_name, query, target_table, convert_items, chunksize=500
     if self.is_aborted():
         print("Task aborted.")
         return
+    # Test some tables
+    # if table_name != "ps_customer_company":
+    #     return
+    # //Test some tables
     print(f"Synchronizing table {table_name}...")
     for chunk in pd.read_sql_query(query, con=prod_engine, chunksize=chunksize):
         for field, convert_func in convert_items:

@@ -1,15 +1,181 @@
-    <footer class="bg-light py-3">
-        <div class="container text-center">
-            <h5>DMA</h5>
-            <p>E-Commerce Data Management Application</p>
-            <div class="d-flex justify-content-center mb-2">
-                <a href="https://github.com/tkdesign" target="_blank" class="btn btn-link text-decoration-none"><i class="bi bi-github"></i></a>
-            </div>
-            <div>
-                <span>&copy; 2025 — <strong>Kovalenko Petr</strong></span>
-            </div>
+<footer class="bg-light py-3">
+    <div class="container text-center">
+        <h5>DMA</h5>
+        <p>E-Commerce Data Management Application</p>
+        <div class="d-flex justify-content-center mb-2">
+            <a href="https://github.com/tkdesign" target="_blank" class="btn btn-link text-decoration-none"><i
+                    class="bi bi-github"></i></a>
         </div>
-    </footer>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+        <div>
+            <span>&copy; 2025 — <strong>Kovalenko Petr</strong></span>
+        </div>
+    </div>
+</footer>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+{% if page == 'dashboard' %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+    // Установка фиксированной высоты для контейнеров
+    document.addEventListener('DOMContentLoaded', () => {
+        const chartContainers = [
+            'monthly-revenue-chart',
+            'gender-distribution-chart',
+            'order-status-heatmap',
+            'age-distribution-chart'
+        ];
+        chartContainers.forEach(id => {
+            const container = document.getElementById(id);
+            if (container) {
+                container.style.minHeight = '300px'; // Установка минимальной высоты
+            }
+        });
+    });
+
+    // Загрузка данных для метрик
+    fetch('/get-summary')
+        .then(response => response.json())
+        .then(data => {
+            // Форматирование чисел с пробелами как разделителями
+            document.getElementById('carts-count').innerHTML =
+                parseInt(data.carts_count).toLocaleString('sk-SK') + `<br><div class="card-numeric-subtitle">Košíky</div>`;
+            document.getElementById('orders-count').innerHTML =
+                parseInt(data.orders_count).toLocaleString('sk-SK') + `<br><div class="card-numeric-subtitle">Objednávky</div>`;
+            document.getElementById('total-revenue').innerHTML =
+                Math.round(data.total_revenue).toLocaleString('sk-SK') + ` &euro;` +
+                `<br><div class="card-numeric-subtitle">Príjmy</div>`;
+            document.getElementById('conversion-rate').innerHTML =
+                Math.round(data.conversion_rate).toLocaleString('sk-SK') + '%' +
+                `<br><div class="card-numeric-subtitle">Konverzia</div>`;
+        })
+        .catch(error => console.error('Error loading summary:', error));
+
+    // Графики
+    function loadChart(endpoint, containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) {
+            console.error(`Container with ID "${containerId}" not found.`);
+            return;
+        }
+
+        fetch(endpoint)
+            .then(response => response.json())
+            .then(data => {
+                //data.layout.title = '';
+                data.layout.width = 400;  // Ширина
+                data.layout.height = 300; // Высота
+                Plotly.newPlot(containerId, data.data, data.layout)
+                    .catch(error => console.error(`Error plotting "${containerId}":`, error));
+            })
+            .catch(error => console.error(`Error fetching data for "${containerId}":`, error));
+    }
+
+    // Загрузка каждого графика
+    loadChart('/get-monthly-revenue', 'monthly-revenue-chart');
+    loadChart('/get-gender-distribution', 'gender-distribution-chart');
+    loadChart('/get-order-status-heatmap', 'order-status-heatmap');
+    loadChart('/get-age-distribution', 'age-distribution-chart');
+    loadChart('/get-gender-quartile-distribution', 'gender-quartile-distribution-chart');
+    loadChart('/get-orders-heatmap', 'orders-heatmap-chart');
+</script>
+{% elif page == 'etl_control' %}
+<script src="{{ url_for('static', filename='assets/luxon/luxon.min.js') }}"></script>
+<script src="{{ url_for('static', filename='assets/tabulator/js/tabulator.min.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    var table = new Tabulator("#etl-table", {
+    layout:"fitColumns",
+    pagination:true,
+    {#paginationMode:"remote",#}
+    paginationSize:10,
+    paginationInitialPage:1,
+    ajaxURL: "{{ url_for('admin.etl_data') }}",
+    ajaxConfig:"GET",
+    placeholder:"No ETL log data available",
+    columns:[
+        {title:"ID", field:"id", sorter:"number", width:60},
+        {title:"Job Name", field:"job_name", sorter:"string"},
+        {title:"Started At", field:"started_at", sorter:"date", formatter:"datetime", formatterParams:{
+            inputFormat: 'iso',
+            outputFormat:"yyyy-MM-dd HH:mm:ss",
+            invalidPlaceholder:"-"
+        }},
+        {title:"Ended At", field:"ended_at", sorter:"date", formatter:"datetime", formatterParams:{
+            inputFormat: 'iso',
+            outputFormat:"yyyy-MM-dd HH:mm:ss",
+            invalidPlaceholder:"-"
+        }},
+        {title:"Status", field:"status", sorter:"string", formatter:function(cell){
+            var status = cell.getValue();
+            if(status === "RUNNING"){
+                return "<span class='badge bg-primary'>" + status + "</span>";
+            } else if(status === "SUCCESS"){
+                return "<span class='badge bg-success'>" + status + "</span>";
+            } else if(status === "FAILED"){
+                return "<span class='badge bg-danger'>" + status + "</span>";
+            } else if(status === "REVOKED"){
+                return "<span class='badge bg-secondary'>" + status + "</span>";
+            }
+            return status;
+        }},
+        {title:"Message", field:"message", sorter:"string"},
+        {title:"Tables Processed", field:"tables_processed", sorter:"number"},
+        {title:"Actions", field:"actions", formatter:function(cell){
+            var data = cell.getRow().getData();
+            if(data.status === "RUNNING" && data.task_id){
+                return "<button class='btn btn-sm btn-danger stop-task-btn' data-task-id='" + data.task_id + "'>Stop</button>";
+            }
+            return "";
+        }, width:100}
+    ],
+    rowFormatter:function(row){
+        var data = row.getData();
+        if(data.status === "RUNNING"){
+            row.getElement().style.backgroundColor = "#fff3cd";
+        }
+    }
+});
+
+setInterval(function(){
+    table.setData();
+}, 10000);
+
+document.getElementById("start-etl-btn").addEventListener("click", function(){
+    fetch("{{ url_for('admin.run_etl_chain') }}", {
+        method:"GET",
+        headers: {"Content-Type": "application/json"}
+    })
+    .then(response => response.json())
+    .then(data => {
+        var taskId = (data.hasOwnProperty("chain_task_id") ? data.chain_task_id : null);
+        alert("ETL process started. Task ID: " + taskId);
+        table.setData();
+    })
+    .catch(error => {
+        console.error("Error starting ETL:", error);
+    });
+});
+
+document.getElementById("etl-table").addEventListener("click", function(e){
+    if(e.target && e.target.matches("button.stop-task-btn")){
+        var taskId = e.target.getAttribute("data-task-id");
+        fetch("{{ url_for('admin.revoke_task') }}", {
+            method:"POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({task_id: taskId})
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert("Task " + taskId + " revoked.");
+            table.setData();
+        })
+        .catch(error => {
+            console.error("Error revoking task:", error);
+        });
+    }
+});
+
+});
+</script>
+{% endif %}
 </body>
 </html>

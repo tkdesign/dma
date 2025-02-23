@@ -16,6 +16,7 @@
                         <a class="btn btn-primary">Edit</a>
                     </div>
                 </div>
+
                 <form action="{{ url_for('auth.auth_signup') }}" method="post" novalidate class="d-none">
                     {{ form.hidden_tag() }}
                     <div class="mb-3">

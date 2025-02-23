@@ -38,7 +38,7 @@ def users():
 def etl_control():
     if not current_user.is_admin():
         return redirect(url_for('dashboard.dashboard_index'))
-    return render_template('admin/etl_control.html')
+    return render_template('admin/etl_control.html', title='DMA - ETL Control', page='etl_control')
 
 @admin_blueprint.route('/etl_data', methods=['GET'])
 @login_required
