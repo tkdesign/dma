@@ -7,6 +7,7 @@ from sqlalchemy import create_engine, text
 import pandas as pd
 from datetime import datetime
 import time
+import gc
 from celeryconfig import broker_url, result_backend, PROD_DB_URI, STAGE_DB_URI, DWH_DB_URI
 
 celery_app = Celery('etl_tasks', broker=broker_url, backend=result_backend)
@@ -267,13 +268,14 @@ def update_etl_log(log_id, status, message=None, tables_processed=None):
         })
 
 def revoke_etl_log(task_id):
+    # with stage_engine.connect() as conn:
     with stage_engine.begin() as conn:
-        conn.rollback()
+    #     conn.rollback()
         conn.execute(text("""
             UPDATE etl_log
-            SET status = 'REVOKED'
+            SET status = 'REVOKED', ended_at = :ended_at
             WHERE task_id = :task_id
-        """), {"task_id": task_id})
+        """), {"task_id": task_id, "ended_at": datetime.now()})
 
 def clear_stage_tables(self, tables):
     target_tables = [ config["target"] for config in tables ]
@@ -289,7 +291,7 @@ def clear_stage_tables(self, tables):
             conn.execute(text(f"TRUNCATE TABLE {table} RESTART IDENTITY CASCADE"))
             print(f"Table {table} truncated.")
 
-def et_table(self, table_name, query, target_table, convert_items, chunksize=50000):
+def et_table(self, table_name, query, target_table, convert_items, chunksize=10000):
     if self.is_aborted():
         print("Task aborted.")
         return
@@ -309,6 +311,8 @@ def et_table(self, table_name, query, target_table, convert_items, chunksize=500
         if self.is_aborted():
             print("Task aborted.")
             return
+        del chunk
+        gc.collect()
         # test short cycle
         # break
         # //test short cycle
