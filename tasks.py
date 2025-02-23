@@ -268,6 +268,7 @@ def update_etl_log(log_id, status, message=None, tables_processed=None):
 
 def revoke_etl_log(task_id):
     with stage_engine.begin() as conn:
+        conn.rollback()
         conn.execute(text("""
             UPDATE etl_log
             SET status = 'REVOKED'
