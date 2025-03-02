@@ -1,0 +1,8 @@
+from sqlalchemy import create_engine
+from load_dim_customer import load_dim_customer
+from celeryconfig import STAGE_DB_URI, DWH_DB_URI
+
+stage_engine = create_engine(STAGE_DB_URI)
+dwh_engine = create_engine(DWH_DB_URI)
+
+load_dim_customer(self=None, stage_engine=stage_engine, dwh_engine=dwh_engine)

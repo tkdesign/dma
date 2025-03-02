@@ -1,6 +1,7 @@
-from flask import Flask, Blueprint, render_template, redirect, url_for
-from flask_login import LoginManager, current_user, login_required
+from flask import Flask, Blueprint, render_template, redirect, url_for, request
+from flask_login import LoginManager, current_user
 from auth.auth import auth_blueprint
+from auth.base_auth import check_auth, authenticate
 from dashboard.dashboard import dashboard_blueprint
 from reports.reports import reports_blueprint
 from admin.admin import admin_blueprint
@@ -15,12 +16,18 @@ db.init_app(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'auth.auth_login_form'
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.get(user_id)
 
 home_bp = Blueprint('home', __name__, url_prefix='/')
 
+@home_bp.before_request
+def require_http_auth():
+    auth = request.authorization
+    if not auth or not check_auth(auth.username, auth.password):
+        return authenticate()
 @home_bp.route('/')
 def home():
     if current_user.is_authenticated:

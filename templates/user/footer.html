@@ -13,9 +13,9 @@
 </footer>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 {% if page == 'dashboard' %}
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script src="{{ url_for('static', filename='assets/plotly/plotly.min.js') }}"></script>
+<script src="{{ url_for('static', filename='assets/plotly/plotly-locale-sk.js') }}"></script>
 <script>
-    // Установка фиксированной высоты для контейнеров
     document.addEventListener('DOMContentLoaded', () => {
         const chartContainers = [
             'monthly-revenue-chart',
@@ -26,16 +26,14 @@
         chartContainers.forEach(id => {
             const container = document.getElementById(id);
             if (container) {
-                container.style.minHeight = '300px'; // Установка минимальной высоты
+                container.style.minHeight = '300px';
             }
         });
     });
 
-    // Загрузка данных для метрик
     fetch('/get-summary')
         .then(response => response.json())
         .then(data => {
-            // Форматирование чисел с пробелами как разделителями
             document.getElementById('carts-count').innerHTML =
                 parseInt(data.carts_count).toLocaleString('sk-SK') + `<br><div class="card-numeric-subtitle">Košíky</div>`;
             document.getElementById('orders-count').innerHTML =
@@ -49,7 +47,6 @@
         })
         .catch(error => console.error('Error loading summary:', error));
 
-    // Графики
     function loadChart(endpoint, containerId) {
         const container = document.getElementById(containerId);
         if (!container) {
@@ -61,21 +58,20 @@
             .then(response => response.json())
             .then(data => {
                 //data.layout.title = '';
-                data.layout.width = 400;  // Ширина
-                data.layout.height = 300; // Высота
+                data.layout.width = 400;
+                data.layout.height = 300;
                 Plotly.newPlot(containerId, data.data, data.layout)
                     .catch(error => console.error(`Error plotting "${containerId}":`, error));
             })
             .catch(error => console.error(`Error fetching data for "${containerId}":`, error));
     }
 
-    // Загрузка каждого графика
     loadChart('/get-monthly-revenue', 'monthly-revenue-chart');
+    loadChart('/get-orders-heatmap', 'orders-heatmap-chart');
     loadChart('/get-gender-distribution', 'gender-distribution-chart');
-    loadChart('/get-order-status-heatmap', 'order-status-heatmap');
     loadChart('/get-age-distribution', 'age-distribution-chart');
     loadChart('/get-gender-quartile-distribution', 'gender-quartile-distribution-chart');
-    loadChart('/get-orders-heatmap', 'orders-heatmap-chart');
+    loadChart('/get-order-status-heatmap', 'order-status-heatmap');
 </script>
 {% elif page == 'etl_control' %}
 <script src="{{ url_for('static', filename='assets/luxon/luxon.min.js') }}"></script>
@@ -146,6 +142,11 @@ document.getElementById("start-etl-btn").addEventListener("click", function(){
     })
     .then(response => response.json())
     .then(data => {
+        const error = data.hasOwnProperty("error");
+        if (error) {
+            alert("Error starting ETL: " + data.error);
+            return;
+        }
         var taskId = (data.hasOwnProperty("chain_task_id") ? data.chain_task_id : null);
         alert("ETL process started. Task ID: " + taskId);
         table.setData();
@@ -174,6 +175,80 @@ document.getElementById("etl-table").addEventListener("click", function(e){
     }
 });
 
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const updateStatus = (elementId, data) => {
+        let msg = 'Unknown', className = 'bg-secondary';
+
+        if (data) {
+            const error = data.hasOwnProperty('error');
+            const status = data.hasOwnProperty('status');
+
+            if (error) {
+                className = 'bg-danger';
+                msg = 'Failed';
+            } else if (status) {
+                msg = data.status;
+                switch (msg.toLocaleLowerCase()) {
+                    case 'running':
+                        className = 'bg-primary';
+                        break;
+                    case 'ok':
+                    case 'idle':
+                        className = 'bg-success';
+                        break;
+                    case 'unavailable':
+                        className = 'bg-warning';
+                        break;
+                    case 'failed':
+                        className = 'bg-danger';
+                        break;
+                    default:
+                        className = 'bg-secondary';
+                        break;
+                }
+            }
+        }
+
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.className = 'badge';
+            element.classList.add(className);
+            element.textContent = element.textContent.split(':')[0] + ': ' + msg;
+        }
+    };
+
+    const checkStatuses = () => {
+        fetch('{{ url_for('admin.prod_db_status') }}')
+            .then(response => response.json())
+            .then(data => updateStatus('prod-db-status', data))
+            .catch(() => updateStatus('prod-db-status', null));
+
+        fetch('{{ url_for('admin.stage_db_status') }}')
+            .then(response => response.json())
+            .then(data => updateStatus('stage-db-status', data))
+            .catch(() => updateStatus('stage-db-status', null));
+
+        fetch('{{ url_for('admin.dwh_status') }}')
+            .then(response => response.json())
+            .then(data => updateStatus('dwh-status', data))
+            .catch(() => updateStatus('dwh-status', null));
+
+        fetch('{{ url_for('admin.redis_db_status') }}')
+            .then(response => response.json())
+            .then(data => updateStatus('redis-db-status', data))
+            .catch(() => updateStatus('redis-db-status', null));
+
+        fetch('{{ url_for('admin.celery_worker_status') }}')
+            .then(response => response.json())
+            .then(data => updateStatus('celery-worker-status', data))
+            .catch(() => updateStatus('celery-worker-status', null));
+    };
+
+    checkStatuses();
+    setInterval(checkStatuses, 5000);
 });
 </script>
 {% endif %}

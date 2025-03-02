@@ -10,6 +10,18 @@ import time
 import gc
 from celeryconfig import broker_url, result_backend, PROD_DB_URI, STAGE_DB_URI, DWH_DB_URI
 
+from l_tasks.load_dim_date import load_dim_date
+from l_tasks.load_dim_time import load_dim_time
+from l_tasks.load_dim_customer import load_dim_customer
+from l_tasks.load_dim_address import load_dim_address
+from l_tasks.load_dim_attribute import load_dim_attribute
+from l_tasks.load_dim_product import load_dim_product
+from l_tasks.load_bridge_product_attribute import load_bridge_product_attribute
+from l_tasks.load_dim_order_state import load_dim_order_state
+from l_tasks.load_fact_cart_line import load_fact_cart_line
+from l_tasks.load_fact_order_line import load_fact_order_line
+from l_tasks.load_fact_order_history import load_fact_order_history
+
 celery_app = Celery('etl_tasks', broker=broker_url, backend=result_backend)
 celery_app.config_from_object('celeryconfig')
 
@@ -232,6 +244,20 @@ ET_TABLES_CONFIG = {
     },
 }
 
+L_TABLES_CONFIG = {
+    "dim_date": load_dim_date,
+    "dim_time": load_dim_time,
+    "dim_customer": load_dim_customer,
+    "dim_address": load_dim_address,
+    "dim_attribute": load_dim_attribute,
+    "dim_product": load_dim_product,
+    "bridge_product_attribute": load_bridge_product_attribute,
+    "dim_order_state": load_dim_order_state,
+    "fact_cart_line": load_fact_cart_line,
+    "fact_order_line": load_fact_order_line,
+    "fact_order_history": load_fact_order_history,
+}
+
 @task_revoked.connect
 def revoke_handler(*args, **kwargs):
     if "request" in kwargs:
@@ -278,6 +304,7 @@ def revoke_etl_log(task_id):
         """), {"task_id": task_id, "ended_at": datetime.now()})
 
 def clear_stage_tables(self, tables):
+    print("Clearing stage tables...")
     target_tables = [ config["target"] for config in tables ]
     with stage_engine.begin() as conn:
         for table in target_tables:
@@ -290,6 +317,7 @@ def clear_stage_tables(self, tables):
             # //Test some tables
             conn.execute(text(f"TRUNCATE TABLE {table} RESTART IDENTITY CASCADE"))
             print(f"Table {table} truncated.")
+    print("End of clearing stage tables.")
 
 def et_table(self, table_name, query, target_table, convert_items, chunksize=10000):
     if self.is_aborted():
@@ -324,12 +352,24 @@ def stage_reload_task(self, *args, **kwargs):
         return {"status": "REVOKED", "tables": 0}
     job_name = "stage_reload"
     log_id = insert_etl_log(job_name, self.request.id)
+    print("Stage reload started.")
+    pass_mode = False
+    if pass_mode:
+        print("Clearing stage tables...")
+        time.sleep(10)
+        print("End of clearing stage tables.")
+        print("Extracting data from production...")
+        time.sleep(10)
+        print("End of extracting data from production.")
+        print("Stage reload completed.")
+        update_etl_log(log_id, "SUCCESS", "Stage reload completed", 0)
+        return {"status": "SUCCESS", "tables": 0}
     try:
-        print("Starting ETL process...")
         clear_stage_tables(self, ET_TABLES_CONFIG.values())
         if self.is_aborted():
             return {"status": "REVOKED", "tables": 0}
         tables_processed = 0
+        print("Extracting data from production...")
         for table_name, config in ET_TABLES_CONFIG.items():
             if self.is_aborted():
                 print("Task revoked.")
@@ -340,7 +380,8 @@ def stage_reload_task(self, *args, **kwargs):
             # if tables_processed == 3:
             #     break
             # //test short cycle
-        print("End of ETL process.")
+        print("End of extracting data from production.")
+        print("Stage reload completed.")
         if self.is_aborted():
             return {"status": "REVOKED", "tables": tables_processed}
         update_etl_log(log_id, "SUCCESS", "Stage reload completed", tables_processed)
@@ -355,16 +396,40 @@ def dwh_incremental_task(self, *args, **kwargs):
     if self.is_aborted():
         return {"status": "REVOKED", "tables": 0}
     job_name = "dwh_incremental"
-    if args:
-        print("Positional arguments:", args)
-    if kwargs:
-        print("Keyword arguments:", kwargs)
+    print("DWH incremental load started.")
     log_id = insert_etl_log(job_name, self.request.id)
+    pass_mode = False
+    if pass_mode:
+        time.sleep(10)
+        update_etl_log(log_id, "SUCCESS", "DWH incremental load completed", 0)
+        print("DWH incremental load completed.")
+        return {"status": "SUCCESS", "tables": 0}
     try:
-        time.sleep(3)
-        tables_processed = 10
+        tables_processed = 0
+        for table_name, load_function in L_TABLES_CONFIG.items():
+            if table_name == "dim_date":
+                with dwh_engine as conn:
+                    conn.execute(text("SELECT 1 FROM public.dim_date LIMIT 1"))
+                    if conn.rowcount > 0:
+                        continue
+            elif table_name == "dim_time":
+                with dwh_engine as conn:
+                    conn.execute(text("SELECT 1 FROM public.dim_time LIMIT 1"))
+                    if conn.rowcount > 0:
+                        continue
+            if self.is_aborted():
+                print("Task revoked.")
+                break
+            load_function(self, stage_engine, dwh_engine)
+            tables_processed += 1
+        print("DWH incremental load completed.")
+        if self.is_aborted():
+            return {"status": "REVOKED", "tables": tables_processed}
         update_etl_log(log_id, "SUCCESS", "DWH incremental load completed", tables_processed)
         return {"status": "SUCCESS", "rows": tables_processed}
     except Exception as e:
+        print(e)
         update_etl_log(log_id, "FAILED", str(e))
         # raise e
+    finally:
+        print("DWH incremental load completed.")
