@@ -4,6 +4,58 @@
         <h1>Dashboard</h1>
 
         <div class="row my-4">
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="w-100">
+                    <label for="month-filter" class="form-label">Month</label>
+                    <select class="form-select" id="month-filter">
+                        {% for month in months %}
+                            <option value="{{ month.year }}-{{ month.month }}">{{ month.month_name }}-{{ month.year }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button class="btn btn-primary ms-2" id="apply-month-filter">
+                    <i class="bi bi-funnel"></i>
+                </button>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="w-100">
+                    <label for="quarter-filter" class="form-label">Quarter</label>
+                    <select class="form-select" id="quarter-filter">
+                        {% for quarter in quarters %}
+                            <option value="{{ quarter.year }}-{{ quarter.quarter }}">Q{{ quarter.quarter }}-{{ quarter.year }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button class="btn btn-primary ms-2" id="apply-quarter-filter">
+                    <i class="bi bi-funnel"></i>
+                </button>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="w-100">
+                    <label for="year-filter" class="form-label">Year</label>
+                    <select class="form-select" id="year-filter">
+                        {% for year in years %}
+                            <option value="{{ year.year }}">{{ year.year }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button class="btn btn-primary ms-2" id="apply-year-filter">
+                    <i class="bi bi-funnel"></i>
+                </button>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="w-100">
+                    <label for="date-range-filter" class="form-label">Date range</label>
+                    <input type="date" class="form-control" id="start-date-filter">
+                    <input type="date" class="form-control mt-2" id="end-date-filter">
+                </div>
+                <button class="btn btn-primary ms-2" id="apply-date-range-filter">
+                    <i class="bi bi-funnel"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="row my-4">
 
             <div class="row my-4">
                 <div class="col-md-3">

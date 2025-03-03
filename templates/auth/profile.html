@@ -3,62 +3,72 @@
     <div class="container">
         <div class="row d-flex justify-content-center">
             <div class="col-md">
-                <h1>Your profile</h1>
-                <div class="row">
-                    <p><strong>Email:</strong> {{ current_user.email }}</p>
-                    <p><strong>First name:</strong> {{ current_user.first_name }}</p>
-                    <p><strong>Last name:</strong> {{ current_user.last_name }}</p>
-                    <p><strong>Department:</strong> {{ current_user.department }}</p>
-                    <p><strong>Occupation:</strong> {{ current_user.occupation }}</p>
-                </div>
-                <div class="row">
-                    <div class="col-md-6">
-                        <a class="btn btn-primary">Edit</a>
+                <div class="card mt-4" id="profile-card">
+                    <div class="card-body">
+                        <h1 class="card-title">Your profile</h1>
+                               <table class="table table-borderless mt-3">
+                            <tbody>
+                                <tr>
+                                    <th scope="row">Email:</th>
+                                    <td>{{ current_user.email }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Role:</th>
+                                    <td>{% if current_user.is_admin %} Admin {% else %} User {% endif %}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">First name:</th>
+                                    <td>{{ current_user.first_name }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Last name:</th>
+                                    <td>{{ current_user.last_name }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Department:</th>
+                                    <td>{{ current_user.department }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Occupation:</th>
+                                    <td>{{ current_user.occupation }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <a href="#" class="btn btn-primary mt-3" id="edit-profile-btn">Edit</a>
                     </div>
                 </div>
 
-                <form action="{{ url_for('auth.auth_signup') }}" method="post" novalidate class="d-none">
+                <form action="{{ url_for('auth.auth_profile_update') }}" method="post" novalidate class="d-none" id="edit-profile-form">
                     {{ form.hidden_tag() }}
                     <div class="mb-3">
                         {{ form.email.label(class='form-label') }}<br>
-                        {{ form.email(size=32, class='form-control' + (' is-invalid' if form.email.errors else ''), value=form.email.data) }}
-                        {% if form.email.errors %}
-                            <div class="invalid-feedback">
-                                {% for error in form.email.errors %}
-                                    <span>{{ error }}</span>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
+                        {{ form.email(size=32, class='form-control' + (' is-invalid' if form.email.errors else ''), value=form.email.data, disabled=True) }}
                     </div>
-                    <div class="mb-3">
-                        {{ form.password.label(class='form-label') }}<br>
-                        {{ form.password(size=32, class='form-control') + (' is-invalid' if form.password.errors else '') }}
-                        {% if form.password.errors %}
-                            <div class="invalid-feedback">
-                                {% for error in form.password.errors %}
-                                    <span>{{ error }}</span>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-                        {% if form.password.errors %}
-                            <div class="invalid-feedback">
-                                {% for error in form.password.errors %}
-                                    <span>{{ error }}</span>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-                    </div>
-                    <div class="mb-3">
-                        {{ form.confirm_password.label(class='form-label') }}<br>
-                        {{ form.confirm_password(size=32, class='form-control') + (' is-invalid' if form.confirm_password.errors else '') }}
-                        {% if form.confirm_password.errors %}
-                            <div class="invalid-feedback">
-                                {% for error in form.confirm_password.errors %}
-                                    <span>{{ error }}</span>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-                    </div>
+                    <fieldset class="border p-3 mb-4 rounded-2">
+                        <legend class="text-primary">Change password</legend>
+                        <div class="mb-3">
+                            {{ form.current_password.label(class='form-label') }}<br>
+                            {{ form.current_password(size=32, class='form-control' + (' is-invalid' if form.current_password.errors else ''), autocomplete='new-password') }}
+                            {% if form.current_password.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.current_password.errors %}
+                                        <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="mb-3">
+                            {{ form.new_password.label(class='form-label') }}<br>
+                            {{ form.new_password(size=32, class='form-control' + (' is-invalid' if form.new_password.errors else ''), autocomplete='new-password') }}
+                            {% if form.new_password.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.new_password.errors %}
+                                        <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </fieldset>
                     <div class="mb-3">
                         {{ form.first_name.label(class='form-label') }}<br>
                         {{ form.first_name(size=32, class='form-control'  + (' is-invalid' if form.first_name.errors else ''), value=form.first_name.data) }}
@@ -103,6 +113,11 @@
                             </div>
                         {% endif %}
                     </div>
+                    {% if error %}
+                        <div class="alert alert-danger">
+                            {{ error }}
+                        </div>
+                    {% endif %}
                     <div class="mb-3">{{ form.submit(class='btn btn-primary') }}</div>
                 </form>
             </div>

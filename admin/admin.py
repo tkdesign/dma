@@ -12,12 +12,6 @@ import redis
 
 admin_blueprint = Blueprint('admin', __name__)
 
-@admin_blueprint.before_request
-def require_http_auth():
-    auth = request.authorization
-    if not auth or not check_auth(auth.username, auth.password):
-        return authenticate()
-
 def is_any_task_running():
     inspector = current_app.control.inspect()
     workers = inspector.ping()
@@ -31,11 +25,17 @@ def is_any_task_running():
 
     return False
 
+@admin_blueprint.before_request
+def require_http_auth():
+    auth = request.authorization
+    if not auth or not check_auth(auth.username, auth.password):
+        return authenticate()
+
 @admin_blueprint.route('/users', methods=['GET'])
 @login_required
 def users():
     if current_user.is_admin():
-        return jsonify({'message': 'Users'})
+        return render_template('admin/users.html', title='DMA - Users', page='users')
     else:
         return redirect(url_for('dashboard.dashboard_index'))
 
