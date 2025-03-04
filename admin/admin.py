@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, render_template, redirect, url_fo
 from flask_login import current_user, login_required
 from sqlalchemy import create_engine, text
 
-from models import EtlLog
+from models import EtlLog, User
 from tasks import stage_reload_task, dwh_incremental_task
 from celery import chain, current_app
 from celery.result import AsyncResult
@@ -38,6 +38,48 @@ def users():
         return render_template('admin/users.html', title='DMA - Users', page='users')
     else:
         return redirect(url_for('dashboard.dashboard_index'))
+
+@admin_blueprint.route('/users_data', methods=['GET'])
+@login_required
+def users_data():
+    if not current_user.is_admin():
+        return jsonify({"error": "Unauthorized"}), 403
+
+    try:
+        page = int(request.args.get('page', 1))
+        page_size = int(request.args.get('pageSize', 10))
+    except ValueError:
+        page = 1
+        page_size = 10
+
+    sort_field = request.args.get('sortField', 'id')
+    sort_dir = request.args.get('sortDir', 'desc')
+
+    query = User.query
+
+    if sort_dir.lower() == 'asc':
+        query = query.order_by(getattr(User, sort_field).asc())
+    else:
+        query = query.order_by(getattr(User, sort_field).desc())
+
+    total_records = query.count()
+
+    users = query.offset((page - 1) * page_size).limit(page_size).all()
+
+    data = []
+    for user in users:
+        data.append({
+            "id": user.id,
+            "email": user.email,
+            "role": ("admin" if user.role == 1 else "user"),
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "department": user.department,
+            "occupation": user.occupation,
+            "active": user.active
+        })
+
+    return jsonify(data), 200
 
 @admin_blueprint.route('/etl_control', methods=['GET'])
 @login_required

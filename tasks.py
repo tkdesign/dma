@@ -1,14 +1,16 @@
 import hashlib
-
+import json
 from celery import Celery
 from celery.signals import task_revoked
 from celery.contrib.abortable import AbortableTask
 from sqlalchemy import create_engine, text
 import pandas as pd
+import plotly.express as px
 from datetime import datetime
 import time
 import gc
 from celeryconfig import broker_url, result_backend, PROD_DB_URI, STAGE_DB_URI, DWH_DB_URI
+from reportsconfig import reports_queries
 
 from l_tasks.load_dim_date import load_dim_date
 from l_tasks.load_dim_time import load_dim_time
@@ -21,6 +23,7 @@ from l_tasks.load_dim_order_state import load_dim_order_state
 from l_tasks.load_fact_cart_line import load_fact_cart_line
 from l_tasks.load_fact_order_line import load_fact_order_line
 from l_tasks.load_fact_order_history import load_fact_order_history
+from models import Report, db
 
 celery_app = Celery('etl_tasks', broker=broker_url, backend=result_backend)
 celery_app.config_from_object('celeryconfig')
@@ -433,3 +436,41 @@ def dwh_incremental_task(self, *args, **kwargs):
         # raise e
     finally:
         print("DWH incremental load completed.")
+
+@celery_app.task(bind=True, base=AbortableTask)
+def build_report_task(self, *args, **kwargs):
+    if self.is_aborted():
+        print("Task aborted.")
+        return
+
+    parameters = self.request.json.get('parameters')
+    report_type = parameters.get("report_type")
+
+    report = Report(user_id=self.request.user_id, report_type=self.request.report_type, parameters=self.request.parameters)
+    db.session.add(report)
+    db.session.commit()
+
+    if report_type == 'gender_distribution':
+        with db.engine.connect() as conn:
+            df = pd.read_sql_query(reports_queries[report_type], conn)
+        if self.is_aborted():
+            print("Task aborted.")
+            return
+        fig = px.pie(df, values='customers_count', names='gender', title='Gender Distribution')
+        report.result = json.loads(fig.to_json())
+    elif report_type == 'age_distribution':
+        with db.engine.connect() as conn:
+            df = pd.read_sql_query(reports_queries[report_type], conn)
+        if self.is_aborted():
+            print("Task aborted.")
+            return
+        fig = px.bar(df, x='age_range', y='avg_order_value', title='Average Order Value by Age Range')
+        report.result = json.loads(fig.to_json())
+
+    db.session.commit()
+
+    print(f"Report {report.id} created.")
+
+
+
+

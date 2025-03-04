@@ -10,6 +10,10 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
     {% if page == "etl_control" %}
     <link href="{{ url_for('static', filename='assets/tabulator/css/tabulator_bootstrap5.min.css') }}" rel="stylesheet">
+    {% elif page == "users" %}
+    <link href="{{ url_for('static', filename='assets/tabulator/css/tabulator_bootstrap5.min.css') }}" rel="stylesheet">
+    {% elif page == "reports" %}
+    <link href="{{ url_for('static', filename='assets/tabulator/css/tabulator_bootstrap5.min.css') }}" rel="stylesheet">
     {% endif %}
     <title>{{ title or 'DMA' }}</title>
     {% if page == 'dashboard' %}

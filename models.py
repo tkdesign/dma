@@ -75,3 +75,32 @@ class EtlLog(db.Model):
 
     def get(log_id):
         return EtlLog.query.get(log_id)
+
+class Report(db.Model):
+    __bind_key__ = 'dwh'
+    __tablename__ = 'report'
+    __table_args__ = {'schema': 'public'}
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    report_type = db.Column(db.String(50), nullable=False)
+    parameters = db.Column(db.JSON, nullable=False)
+    result = db.Column(db.JSON, nullable=True)
+    started_at = db.Column(db.DateTime, nullable=False)
+    ended_at = db.Column(db.DateTime, nullable=True)
+    status = db.Column(db.String(50), nullable=False)
+    message = db.Column(db.Text, nullable=True)
+    task_id = db.Column(db.String(36), nullable=True)
+    created_at = db.Column(db.DateTime, server_default=db.func.now())
+
+    def __repr__(self):
+        return '<Report {}>'.format(self.id)
+
+    def __init__(self, user_id, report_type, parameters, started_at, status):
+        self.user_id = user_id
+        self.report_type = report_type
+        self.parameters = parameters
+        self.started_at = started_at
+        self.status = status
+
+    def get(report_id):
+        return Report.query.get(report_id)

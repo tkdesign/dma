@@ -1,126 +1,121 @@
 {% extends "user/layout.html" %}
 {% block content %}
-    <div class="container">
-        <div class="row d-flex justify-content-center">
-            <div class="col-md">
-                <div class="card mt-4" id="profile-card">
-                    <div class="card-body">
-                        <h1 class="card-title">Your profile</h1>
-                               <table class="table table-borderless mt-3">
-                            <tbody>
-                                <tr>
-                                    <th scope="row">Email:</th>
-                                    <td>{{ current_user.email }}</td>
-                                </tr>
-                                <tr>
-                                    <th scope="row">Role:</th>
-                                    <td>{% if current_user.is_admin %} Admin {% else %} User {% endif %}</td>
-                                </tr>
-                                <tr>
-                                    <th scope="row">First name:</th>
-                                    <td>{{ current_user.first_name }}</td>
-                                </tr>
-                                <tr>
-                                    <th scope="row">Last name:</th>
-                                    <td>{{ current_user.last_name }}</td>
-                                </tr>
-                                <tr>
-                                    <th scope="row">Department:</th>
-                                    <td>{{ current_user.department }}</td>
-                                </tr>
-                                <tr>
-                                    <th scope="row">Occupation:</th>
-                                    <td>{{ current_user.occupation }}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                        <a href="#" class="btn btn-primary mt-3" id="edit-profile-btn">Edit</a>
-                    </div>
+    <div class="container-fluid">
+        <h1>Your profile</h1>
+        <div class="col-4" id="view-profile-container">
+            <table class="table table-borderless mt-3">
+                <tbody>
+                    <tr>
+                        <th scope="row">Email:</th>
+                        <td>{{ current_user.email }}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Role:</th>
+                        <td>{% if current_user.is_admin %} Admin {% else %} User {% endif %}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">First name:</th>
+                        <td>{{ current_user.first_name }}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Last name:</th>
+                        <td>{{ current_user.last_name }}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Department:</th>
+                        <td>{{ current_user.department }}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Occupation:</th>
+                        <td>{{ current_user.occupation }}</td>
+                    </tr>
+                </tbody>
+            </table>
+            <a href="#" class="btn btn-primary mt-3" id="edit-profile-btn">Edit</a>
+        </div>
+        <div class="row d-none" id="edit-profile-container">
+            <form action="{{ url_for('auth.auth_profile_update') }}" method="post" novalidate id="edit-profile-form">
+                {{ form.hidden_tag() }}
+                <div class="mb-3">
+                    {{ form.email.label(class='form-label') }}<br>
+                    {{ form.email(size=32, class='form-control' + (' is-invalid' if form.email.errors else ''), value=form.email.data, disabled=True) }}
                 </div>
-
-                <form action="{{ url_for('auth.auth_profile_update') }}" method="post" novalidate class="d-none" id="edit-profile-form">
-                    {{ form.hidden_tag() }}
+                <fieldset class="border p-3 mb-4 rounded-2">
+                    <legend class="text-primary">Change password</legend>
                     <div class="mb-3">
-                        {{ form.email.label(class='form-label') }}<br>
-                        {{ form.email(size=32, class='form-control' + (' is-invalid' if form.email.errors else ''), value=form.email.data, disabled=True) }}
-                    </div>
-                    <fieldset class="border p-3 mb-4 rounded-2">
-                        <legend class="text-primary">Change password</legend>
-                        <div class="mb-3">
-                            {{ form.current_password.label(class='form-label') }}<br>
-                            {{ form.current_password(size=32, class='form-control' + (' is-invalid' if form.current_password.errors else ''), autocomplete='new-password') }}
-                            {% if form.current_password.errors %}
-                                <div class="invalid-feedback">
-                                    {% for error in form.current_password.errors %}
-                                        <span>{{ error }}</span>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                        </div>
-                        <div class="mb-3">
-                            {{ form.new_password.label(class='form-label') }}<br>
-                            {{ form.new_password(size=32, class='form-control' + (' is-invalid' if form.new_password.errors else ''), autocomplete='new-password') }}
-                            {% if form.new_password.errors %}
-                                <div class="invalid-feedback">
-                                    {% for error in form.new_password.errors %}
-                                        <span>{{ error }}</span>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                        </div>
-                    </fieldset>
-                    <div class="mb-3">
-                        {{ form.first_name.label(class='form-label') }}<br>
-                        {{ form.first_name(size=32, class='form-control'  + (' is-invalid' if form.first_name.errors else ''), value=form.first_name.data) }}
-                        {% if form.first_name.errors %}
+                        {{ form.current_password.label(class='form-label') }}<br>
+                        {{ form.current_password(size=32, class='form-control' + (' is-invalid' if form.current_password.errors else ''), autocomplete='new-password') }}
+                        {% if form.current_password.errors %}
                             <div class="invalid-feedback">
-                                {% for error in form.first_name.errors %}
+                                {% for error in form.current_password.errors %}
                                     <span>{{ error }}</span>
                                 {% endfor %}
                             </div>
                         {% endif %}
                     </div>
                     <div class="mb-3">
-                        {{ form.last_name.label(class='form-label') }}<br>
-                        {{ form.last_name(size=32, class='form-control' + (' is-invalid' if form.last_name.errors else ''), value=form.last_name.data) }}
-                        {% if form.last_name.errors %}
+                        {{ form.new_password.label(class='form-label') }}<br>
+                        {{ form.new_password(size=32, class='form-control' + (' is-invalid' if form.new_password.errors else ''), autocomplete='new-password') }}
+                        {% if form.new_password.errors %}
                             <div class="invalid-feedback">
-                                {% for error in form.last_name.errors %}
+                                {% for error in form.new_password.errors %}
                                     <span>{{ error }}</span>
                                 {% endfor %}
                             </div>
                         {% endif %}
                     </div>
-                    <div class="mb-3">
-                        {{ form.department.label(class='form-label') }}<br>
-                        {{ form.department(size=32, class='form-control' + (' is-invalid' if form.department.errors else ''), value=form.department.data) }}
-                        {% if form.department.errors %}
-                            <div class="invalid-feedback">
-                                {% for error in form.department.errors %}
-                                    <span>{{ error }}</span>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-                    </div>
-                    <div class="mb-3">
-                        {{ form.occupation.label(class='form-label') }}<br>
-                        {{ form.occupation(size=32, class='form-control' + (' is-invalid' if form.occupation.errors else ''), value=form.occupation.data) }}
-                        {% if form.occupation.errors %}
-                            <div class="invalid-feedback">
-                                {% for error in form.occupation.errors %}
-                                    <span>{{ error }}</span>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-                    </div>
-                    {% if error %}
-                        <div class="alert alert-danger">
-                            {{ error }}
+                </fieldset>
+                <div class="mb-3">
+                    {{ form.first_name.label(class='form-label') }}<br>
+                    {{ form.first_name(size=32, class='form-control'  + (' is-invalid' if form.first_name.errors else ''), value=form.first_name.data) }}
+                    {% if form.first_name.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.first_name.errors %}
+                                <span>{{ error }}</span>
+                            {% endfor %}
                         </div>
                     {% endif %}
-                    <div class="mb-3">{{ form.submit(class='btn btn-primary') }}</div>
-                </form>
-            </div>
+                </div>
+                <div class="mb-3">
+                    {{ form.last_name.label(class='form-label') }}<br>
+                    {{ form.last_name(size=32, class='form-control' + (' is-invalid' if form.last_name.errors else ''), value=form.last_name.data) }}
+                    {% if form.last_name.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.last_name.errors %}
+                                <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="mb-3">
+                    {{ form.department.label(class='form-label') }}<br>
+                    {{ form.department(size=32, class='form-control' + (' is-invalid' if form.department.errors else ''), value=form.department.data) }}
+                    {% if form.department.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.department.errors %}
+                                <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="mb-3">
+                    {{ form.occupation.label(class='form-label') }}<br>
+                    {{ form.occupation(size=32, class='form-control' + (' is-invalid' if form.occupation.errors else ''), value=form.occupation.data) }}
+                    {% if form.occupation.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.occupation.errors %}
+                                <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                {% if error %}
+                    <div class="alert alert-danger">
+                        {{ error }}
+                    </div>
+                {% endif %}
+                <div class="mb-3">{{ form.submit(class='btn btn-primary') }}</div>
+            </form>
         </div>
     </div>
 {% endblock %}

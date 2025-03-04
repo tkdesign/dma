@@ -2,5 +2,93 @@
 {% block content %}
     <div class="container-fluid">
         <h1>Reports</h1>
+        <form id="filter-form">
+        <div class="row my-4">
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="w-100">
+                    <label for="month-filter" class="form-label">Month</label>
+                    <select class="form-select" id="month-filter">
+                        {% for month in months %}
+                            <option value="{{ month.year }}-{{ month.month }}">{{ month.month_name }}-{{ month.year }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-check form-check-inline m-0 p-0">
+                    <input class="btn-check" type="radio" name="date_filter" id="apply-month-filter" value="month" autocomplete="off">
+                    <label class="btn btn-outline-primary ms-2" for="apply-month-filter">
+                        <i class="bi bi-funnel"></i>
+                    </label>
+                </div>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="w-100">
+                    <label for="quarter-filter" class="form-label">Quarter</label>
+                    <select class="form-select" id="quarter-filter">
+                        {% for quarter in quarters %}
+                            <option value="{{ quarter.year }}-{{ quarter.quarter }}">Q{{ quarter.quarter }}-{{ quarter.year }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-check form-check-inline m-0 p-0">
+                    <input class="btn-check" type="radio" name="date_filter" id="apply-quarter-filter" value="quarter" autocomplete="off">
+                    <label class="btn btn-outline-primary ms-2" for="apply-quarter-filter">
+                        <i class="bi bi-funnel"></i>
+                    </label>
+                </div>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="w-100">
+                    <label for="year-filter" class="form-label">Year</label>
+                    <select class="form-select" id="year-filter">
+                        {% for year in years %}
+                            <option value="{{ year.year }}">{{ year.year }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-check form-check-inline m-0 p-0">
+                    <input class="btn-check" type="radio" name="date_filter" id="apply-year-filter" value="year" autocomplete="off" checked>
+                    <label class="btn btn-outline-primary ms-2" for="apply-year-filter">
+                        <i class="bi bi-funnel"></i>
+                    </label>
+                </div>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="w-100">
+                    <label for="date-range-filter" class="form-label">Date range</label>
+                    <input type="date" class="form-control" id="start-date-filter">
+                    <input type="date" class="form-control mt-2" id="end-date-filter">
+                </div>
+                <div class="form-check form-check-inline m-0 p-0">
+                    <input class="btn-check" type="radio" name="date_filter" id="apply-date-range-filter" value="date-range" autocomplete="off">
+                    <label class="btn btn-outline-primary ms-2" for="apply-date-range-filter">
+                        <i class="bi bi-funnel"></i>
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="row my-4">
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="w-100">
+                    <label for="category-filter" class="form-label">Report type</label>
+                    <select class="form-select" id="report-type-filter">
+                        {% for key, value in report_types.items() %}
+                            <option value="{{ key }}">{{ value }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="row my-4">
+            <div class="col-md-3 d-flex align-items-end">
+                {# Create button #}
+                <button class="btn btn-primary" id="create-report-btn">
+                    <i class="bi bi-file-earmark-plus"></i> Create report
+                </button>
+            </div>
+        </div>
+        </form>
+        <div class="row my-4">
+            <div id="reports-table"></div>
+        </div>
     </div>
 {% endblock %}

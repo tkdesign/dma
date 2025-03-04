@@ -13,9 +13,12 @@
                         {% endfor %}
                     </select>
                 </div>
-                <button class="btn btn-primary ms-2" id="apply-month-filter">
-                    <i class="bi bi-funnel"></i>
-                </button>
+                <div class="form-check form-check-inline m-0 p-0">
+                    <input class="btn-check" type="radio" name="date_filter" id="apply-month-filter" value="month" autocomplete="off">
+                    <label class="btn btn-outline-primary ms-2" for="apply-month-filter">
+                        <i class="bi bi-funnel"></i>
+                    </label>
+                </div>
             </div>
             <div class="col-md-3 d-flex align-items-end">
                 <div class="w-100">
@@ -26,9 +29,12 @@
                         {% endfor %}
                     </select>
                 </div>
-                <button class="btn btn-primary ms-2" id="apply-quarter-filter">
-                    <i class="bi bi-funnel"></i>
-                </button>
+                <div class="form-check form-check-inline m-0 p-0">
+                    <input class="btn-check" type="radio" name="date_filter" id="apply-quarter-filter" value="quarter" autocomplete="off">
+                    <label class="btn btn-outline-primary ms-2" for="apply-quarter-filter">
+                        <i class="bi bi-funnel"></i>
+                    </label>
+                </div>
             </div>
             <div class="col-md-3 d-flex align-items-end">
                 <div class="w-100">
@@ -39,9 +45,12 @@
                         {% endfor %}
                     </select>
                 </div>
-                <button class="btn btn-primary ms-2" id="apply-year-filter">
-                    <i class="bi bi-funnel"></i>
-                </button>
+                <div class="form-check form-check-inline m-0 p-0">
+                    <input class="btn-check" type="radio" name="date_filter" id="apply-year-filter" value="year" autocomplete="off" checked>
+                    <label class="btn btn-outline-primary ms-2" for="apply-year-filter">
+                        <i class="bi bi-funnel"></i>
+                    </label>
+                </div>
             </div>
             <div class="col-md-3 d-flex align-items-end">
                 <div class="w-100">
@@ -49,9 +58,12 @@
                     <input type="date" class="form-control" id="start-date-filter">
                     <input type="date" class="form-control mt-2" id="end-date-filter">
                 </div>
-                <button class="btn btn-primary ms-2" id="apply-date-range-filter">
-                    <i class="bi bi-funnel"></i>
-                </button>
+                <div class="form-check form-check-inline m-0 p-0">
+                    <input class="btn-check" type="radio" name="date_filter" id="apply-date-range-filter" value="date-range" autocomplete="off">
+                    <label class="btn btn-outline-primary ms-2" for="apply-date-range-filter">
+                        <i class="bi bi-funnel"></i>
+                    </label>
+                </div>
             </div>
         </div>
 
@@ -83,7 +95,7 @@
             <div class="row my-4">
                 <div class="col-md-6">
                     <div class="card">
-                        <div class="card-body card-with-diagram-body align-content-center" id="monthly-revenue-chart">
+                        <div class="card-body card-with-diagram-body align-content-center" id="period-revenue-chart">
                             {#Loading...#}</div>
                     </div>
                 </div>
