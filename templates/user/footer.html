@@ -11,7 +11,7 @@
         </div>
     </div>
 </footer>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='assets/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
 {% if page == 'dashboard' %}
 <script src="{{ url_for('static', filename='assets/plotly/plotly.min.js') }}"></script>
 <script src="{{ url_for('static', filename='assets/plotly/plotly-locale-sk.js') }}"></script>
@@ -342,7 +342,8 @@
                 {title:"Occupation", field:"occupation", sorter:"string"},
                 {title:"Actions", field:"actions", formatter: function(cell) {
                     const data = cell.getRow().getData();
-                    return "<a href='/admin/users/edit/" + data.id + "' class='btn btn-sm btn-primary'>Edit</a>";
+                    let user_edit_url = "{{ url_for('admin.user_edit', user_id=0) }}".replace('0', data.id);
+                    return "<a href='" + user_edit_url + "' class='btn btn-sm btn-primary'>Edit</a>";
                 }, width:100}
             ]
         });

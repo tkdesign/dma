@@ -9,6 +9,7 @@ from celery.result import AsyncResult
 from auth.base_auth import check_auth, authenticate
 from celeryconfig import PROD_DB_URI, STAGE_DB_URI, DWH_DB_URI, REDIS_DB_URI
 import redis
+from .forms import UserProfileForm
 
 admin_blueprint = Blueprint('admin', __name__)
 
@@ -81,6 +82,55 @@ def users_data():
 
     return jsonify(data), 200
 
+@admin_blueprint.route('/user_edit/<int:user_id>', methods=['GET'])
+@login_required
+def user_edit(user_id):
+    if not current_user.is_admin():
+        return redirect(url_for('dashboard.dashboard_index'))
+
+    user = User.query.get(user_id)
+    if user:
+        form = UserProfileForm()
+        form.email.data = user.email
+        form.role.data = user.role
+        form.first_name.data = user.first_name
+        form.last_name.data = user.last_name
+        form.department.data = user.department
+        form.occupation.data = user.occupation
+        form.active.data = user.active
+        return render_template('admin/user.html', title='DMA - Edit User', page='users', user=user, form=form)
+
+    return redirect(url_for('admin.users'))
+
+@admin_blueprint.route('/user_edit/<int:user_id>', methods=['POST'])
+@login_required
+def user_update(user_id):
+    if not current_user.is_admin():
+        return jsonify({"error": "Unauthorized"}), 403
+    form = UserProfileForm()
+    if form.validate_on_submit():
+        user = User.query.get(user_id)
+        if not user:
+            return render_template('admin/user.html', form=form, error='User not found', title='DMA - Edit User', page='users')
+
+        find_user = User.query.filter_by(email=form.email.data).first()
+        if find_user and find_user.id != user_id:
+            return render_template('admin/user.html', form=form, error='Email already exists',
+                                   title='DMA - Edit User', page='users')
+        if len(form.new_password.data) > 0:
+            if len(form.new_password.data) < 6:
+                return render_template('admin/user.html', form=form, error='New password must be at least 6 characters', title='DMA - Edit User', page='users')
+
+            user.set_password(form.new_password.data)
+
+        user.email = form.email.data
+        user.role = form.role.data
+        user.first_name = form.first_name.data
+        user.last_name = form.last_name.data
+        user.department = form.department.data
+        user.occupation = form.occupation.data
+        user.active = form.active.data
+
 @admin_blueprint.route('/etl_control', methods=['GET'])
 @login_required
 def etl_control():
@@ -147,20 +197,20 @@ def run_etl_chain():
 def revoke_task():
     task_id = request.json.get("task_id")
     if not task_id:
-        return jsonify({"error": "Task ID is required"}), 400
+        return jsonify({"error": "Task ID is required"}), 200
     task = AsyncResult(task_id)
     if task.state in ['PENDING', 'STARTED']:
         task.revoke(terminate=True)
         return jsonify({"task_id": task_id, "message": "Task revoked."}), 200
     else:
-        return jsonify({"error": "Task cannot be revoked in its current state."}), 400
+        return jsonify({"error": "Task cannot be revoked in its current state."}), 200
 
 @admin_blueprint.route('/task_status', methods=['GET'])
 @login_required
 def task_status():
     task_id = request.args.get('task_id')
     if task_id is None:
-        return jsonify({"error": "Task ID is required"}), 400
+        return jsonify({"error": "Task ID is required"}), 200
     task = AsyncResult(task_id)
     return jsonify({"task_id": task.id, "task_state": task.state, "task_result": task.result}), 200
 
@@ -228,6 +278,6 @@ def celery_worker_status():
         if inspector.ping():
             return jsonify({"status": "OK"}), 200
         else:
-            return jsonify({"error": "Celery worker is not running"}), 500
+            return jsonify({"error": "Celery worker is not running"}), 200
     else:
         return jsonify({"error": "Unauthorized"}), 403
