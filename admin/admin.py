@@ -53,10 +53,44 @@ def users_data():
         page = 1
         page_size = 10
 
-    sort_field = request.args.get('sortField', 'id')
-    sort_dir = request.args.get('sortDir', 'desc')
+    sort_field = 'id'
+    sort_dir = 'desc'
+
+    sort_field_key = 'sort[0][field]'
+    sort_dir_key = 'sort[0][dir]'
+
+    if sort_field_key in request.args and sort_dir_key in request.args:
+        sort_field = request.args.get(sort_field_key)
+        sort_dir = request.args.get(sort_dir_key)
 
     query = User.query
+
+    filter_params = []
+    i = 0
+    while True:
+        field = request.args.get(f'filter[{i}][field]')
+        type_ = request.args.get(f'filter[{i}][type]')
+        value = request.args.get(f'filter[{i}][value]')
+        if field and type_ and value:
+            filter_params.append({'field': field, 'type': type_, 'value': value})
+            i += 1
+        else:
+            break
+
+    for filter_param in filter_params:
+        field = filter_param.get('field')
+        type_ = filter_param.get('type')
+        value = filter_param.get('value')
+        if type_ == 'like':
+            query = query.filter(getattr(User, field).like(f"%{value}%"))
+        elif type_ == '>':
+            query = query.filter(getattr(User, field) > value)
+        elif type_ == '<':
+            query = query.filter(getattr(User, field) < value)
+        elif type_ == '=':
+            query = query.filter(getattr(User, field) == value)
+        elif type_ == '<=':
+            query = query.filter(getattr(User, field) <= value)
 
     if sort_dir.lower() == 'asc':
         query = query.order_by(getattr(User, sort_field).asc())
@@ -65,10 +99,10 @@ def users_data():
 
     total_records = query.count()
 
-    users = query.offset((page - 1) * page_size).limit(page_size).all()
+    app_users = query.offset((page - 1) * page_size).limit(page_size).all()
 
     data = []
-    for user in users:
+    for user in app_users:
         data.append({
             "id": user.id,
             "email": user.email,
@@ -80,7 +114,10 @@ def users_data():
             "active": user.active
         })
 
-    return jsonify(data), 200
+    return jsonify({
+        "last_page": (total_records + page_size - 1) // page_size,
+        "data": data
+    }), 200
 
 @admin_blueprint.route('/user_edit/<int:user_id>', methods=['GET'])
 @login_required
@@ -151,10 +188,44 @@ def etl_data():
         page = 1
         page_size = 10
 
-    sort_field = request.args.get('sortField', 'id')
-    sort_dir = request.args.get('sortDir', 'desc')
+    sort_field = 'id'
+    sort_dir = 'desc'
+
+    sort_field_key = 'sort[0][field]'
+    sort_dir_key = 'sort[0][dir]'
+
+    if sort_field_key in request.args and sort_dir_key in request.args:
+        sort_field = request.args.get(sort_field_key)
+        sort_dir = request.args.get(sort_dir_key)
 
     query = EtlLog.query
+
+    filter_params = []
+    i = 0
+    while True:
+        field = request.args.get(f'filter[{i}][field]')
+        type_ = request.args.get(f'filter[{i}][type]')
+        value = request.args.get(f'filter[{i}][value]')
+        if field and type_ and value:
+            filter_params.append({'field': field, 'type': type_, 'value': value})
+            i += 1
+        else:
+            break
+
+    for filter_param in filter_params:
+        field = filter_param.get('field')
+        type_ = filter_param.get('type')
+        value = filter_param.get('value')
+        if type_ == 'like':
+            query = query.filter(getattr(EtlLog, field).like(f"%{value}%"))
+        elif type_ == '>':
+            query = query.filter(getattr(EtlLog, field) > value)
+        elif type_ == '<':
+            query = query.filter(getattr(EtlLog, field) < value)
+        elif type_ == '=':
+            query = query.filter(getattr(EtlLog, field) == value)
+        elif type_ == '<=':
+            query = query.filter(getattr(EtlLog, field) <= value)
 
     if sort_dir.lower() == 'asc':
         query = query.order_by(getattr(EtlLog, sort_field).asc())
@@ -179,7 +250,10 @@ def etl_data():
             "is_active": log.status == "RUNNING"
         })
 
-    return jsonify(data), 200
+    return jsonify({
+        "last_page": (total_records + page_size - 1) // page_size,
+        "data": data
+    }), 200
 
 @admin_blueprint.route('/etl_start', methods=['GET'])
 @login_required

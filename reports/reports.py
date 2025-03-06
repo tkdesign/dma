@@ -43,16 +43,16 @@ def create_report():
         return jsonify({"error": "Unauthorized"}), 403
 
     if is_any_task_running():
-        return jsonify({"error": "Another task is running"}), 400
+        return jsonify({"error": "Another task is running"}), 200
 
     parameters = request.json.get('parameters')
 
     if not report_type or not parameters:
-        return jsonify({"error": "Missing required parameters"}), 400
+        return jsonify({"error": "Missing required parameters"}), 200
 
     task = build_report_task.delay(current_user.id, parameters)
 
-    return jsonify({"task_id": task.id}), 202
+    return jsonify({"task_id": task.id}), 200
 
 @reports_blueprint.route('/report_data', methods=['GET'])
 @login_required
@@ -67,10 +67,44 @@ def reports_data():
         page = 1
         page_size = 10
 
-    sort_field = request.args.get('sortField', 'id')
-    sort_dir = request.args.get('sortDir', 'desc')
+    sort_field = 'id'
+    sort_dir = 'desc'
+
+    sort_field_key = 'sort[0][field]'
+    sort_dir_key = 'sort[0][dir]'
+
+    if sort_field_key in request.args and sort_dir_key in request.args:
+        sort_field = request.args.get(sort_field_key)
+        sort_dir = request.args.get(sort_dir_key)
 
     query = Report.query
+
+    filter_params = []
+    i = 0
+    while True:
+        field = request.args.get(f'filter[{i}][field]')
+        type_ = request.args.get(f'filter[{i}][type]')
+        value = request.args.get(f'filter[{i}][value]')
+        if field and type_ and value:
+            filter_params.append({'field': field, 'type': type_, 'value': value})
+            i += 1
+        else:
+            break
+
+    for filter_param in filter_params:
+        field = filter_param.get('field')
+        type_ = filter_param.get('type')
+        value = filter_param.get('value')
+        if type_ == 'like':
+            query = query.filter(getattr(Report, field).like(f"%{value}%"))
+        elif type_ == '>':
+            query = query.filter(getattr(Report, field) > value)
+        elif type_ == '<':
+            query = query.filter(getattr(Report, field) < value)
+        elif type_ == '=':
+            query = query.filter(getattr(Report, field) == value)
+        elif type_ == '<=':
+            query = query.filter(getattr(Report, field) <= value)
 
     if sort_dir.lower() == 'asc':
         query = query.order_by(getattr(Report, sort_field).asc())
@@ -95,4 +129,7 @@ def reports_data():
             "message": report.message
         })
 
-    return jsonify(data), 200
+    return jsonify({
+        "last_page": (total_records + page_size - 1) // page_size,
+        "data": data
+    }), 200

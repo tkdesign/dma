@@ -142,15 +142,17 @@
         const table = new Tabulator("#etl-table", {
             layout: "fitColumns",
             pagination: true,
-            {#paginationMode:"remote",#}
+            paginationMode: "remote",
+            filterMode: "remote",
+            sortMode: "remote",
             paginationSize: 10,
             paginationInitialPage: 1,
             ajaxURL: "{{ url_for('admin.etl_data') }}",
             ajaxConfig: "GET",
             placeholder: "No ETL log data available",
             columns: [
-                {title: "ID", field: "id", sorter: "number", width: 60},
-                {title: "Job Name", field: "job_name", sorter: "string"},
+                {title: "ID", field: "id", sorter: "number", width: 60, headerFilter:"input", headerFilterFunc:"="},
+                {title: "Job Name", field: "job_name", sorter: "string", headerFilter:"input"},
                 {title: "Started At", field: "started_at", sorter: "date", formatter: "datetime", formatterParams: {
                         inputFormat: 'iso',
                         outputFormat: "yyyy-MM-dd HH:mm:ss",
@@ -177,9 +179,9 @@
                         return status;
                     }
                 },
-                {title: "Message", field: "message", sorter: "string"},
+                {title: "Message", field: "message", sorter: "string", headerFilter:"input"},
                 {title: "Tables Processed", field: "tables_processed", sorter: "number"},
-                {title: "Actions", field: "actions", formatter: function (cell){
+                {title: "Actions", field: "actions", headerSort: false, formatter: function (cell){
                     const data = cell.getRow().getData();
                     if(data.status === "RUNNING" && data.task_id) {
                         return "<button class='btn btn-sm btn-danger stop-task-btn' data-task-id='" + data.task_id + "'>Stop</button>";
@@ -326,21 +328,24 @@
     document.addEventListener('DOMContentLoaded', () => {
         const table = new Tabulator("#users-table", {
             layout:"fitColumns",
-            pagination:"remote",
-            paginationSize:10,
-            paginationInitialPage:1,
+            pagination: true,
+            paginationMode: "remote",
+            filterMode: "remote",
+            sortMode: "remote",
+            paginationSize: 10,
+            paginationInitialPage: 1,
             ajaxURL: "{{ url_for('admin.users_data') }}",
             ajaxConfig:"GET",
             placeholder:"No users available",
             columns: [
-                {title:"ID", field:"id", sorter:"number", width:60},
-                {title:"Email", field:"email", sorter:"string"},
+                {title:"ID", field:"id", sorter:"number", width:60, headerFilter:"input", headerFilterFunc:"="},
+                {title:"Email", field:"email", sorter:"string", headerFilter:"input"},
                 {title:"Role", field:"role", sorter:"string"},
-                {title:"First Name", field:"first_name", sorter:"string"},
-                {title:"Last Name", field:"last_name", sorter:"string"},
-                {title:"Department", field:"department", sorter:"string"},
-                {title:"Occupation", field:"occupation", sorter:"string"},
-                {title:"Actions", field:"actions", formatter: function(cell) {
+                {title:"First Name", field:"first_name", sorter:"string", headerFilter:"input"},
+                {title:"Last Name", field:"last_name", sorter:"string", headerFilter:"input"},
+                {title:"Department", field:"department", sorter:"string", headerFilter:"input"},
+                {title:"Occupation", field:"occupation", sorter:"string", headerFilter:"input"},
+                {title:"Actions", field:"actions", headerSort: false, formatter: function(cell) {
                     const data = cell.getRow().getData();
                     let user_edit_url = "{{ url_for('admin.user_edit', user_id=0) }}".replace('0', data.id);
                     return "<a href='" + user_edit_url + "' class='btn btn-sm btn-primary'>Edit</a>";
@@ -356,15 +361,18 @@
     document.addEventListener('DOMContentLoaded', () => {
         const table = new Tabulator("#reports-table", {
             layout: "fitColumns",
-            pagination: "remote",
+            pagination: true,
+            paginationMode: "remote",
+            filterMode: "remote",
+            sortMode: "remote",
             paginationSize: 10,
             paginationInitialPage: 1,
             ajaxURL: "{{ url_for('reports.reports_data') }}",
             ajaxConfig: "GET",
             placeholder: "No reports available",
             columns: [
-                {title: "ID", field: "id", sorter: "number", width: 60},
-                {title: "Report type", field: "report_type", sorter: "string"},
+                {title: "ID", field: "id", sorter: "number", width: 60, headerFilter:"input", headerFilterFunc:"="},
+                {title: "Report type", field: "report_type", sorter: "string", headerFilter:"input"},
                 {title: "Started At", field: "started_at", sorter: "date", formatter: "datetime", formatterParams: {
                         inputFormat: 'iso',
                         outputFormat: "yyyy-MM-dd HH:mm:ss",
@@ -391,8 +399,8 @@
                         return status;
                     }
                 },
-                {title: "Message", field: "message", sorter: "string"},
-                {title: "Actions", field: "actions", formatter: function (cell) {
+                {title: "Message", field: "message", sorter: "string", headerFilter:"input"},
+                {title: "Actions", field: "actions", headerSort: false, formatter: function (cell) {
                     const data = cell.getRow().getData();
                     if(data.status === "RUNNING" && data.task_id) {
                         return "<button class='btn btn-sm btn-danger stop-task-btn' data-task-id='" + data.task_id + "'>Stop</button>";
