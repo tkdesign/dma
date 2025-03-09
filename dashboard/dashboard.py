@@ -15,7 +15,7 @@ dashboard_blueprint = Blueprint('dashboard', __name__)
 prod_engine = create_engine(PROD_DB_URI)
 dwh_engine = create_engine(DWH_DB_URI)
 
-def apply_period_filter(original_query, filter_type, filter_value):
+def apply_period_filter(original_query, filter_type, filter_value, range_start, range_end):
     current_date = datetime.datetime.now()
     current_year = current_date.year
     current_month = current_date.month
@@ -45,11 +45,11 @@ def apply_period_filter(original_query, filter_type, filter_value):
         except ValueError:
             filter_value = 0
         query = original_query.format(filter="year = " + str(filter_value), filter_raw="'year = " + str(filter_value) + "'")
-    elif filter_type == "range" and (request.args.get("filter_value_start") or request.args.get("filter_value_end")):
+    elif filter_type == "range" and range_start or range_end:
         try:
-            date_start = request.args.get("filter_value_start")
+            date_start = range_start
             filter_value_start = datetime.datetime.strptime(date_start, "%Y-%m-%d").date()
-            date_end = request.args.get("filter_value_end")
+            date_end = range_end
             filter_value_end = datetime.datetime.strptime(date_end, "%Y-%m-%d").date()
         except ValueError:
             filter_value_start = filter_value_end = datetime.datetime.strptime(current_date, "%Y-%m-%d").date()
@@ -80,6 +80,7 @@ def dashboard_index():
     return render_template('dashboard/dashboard.html', title='DMA - Dashboard', page='dashboard', months=months, quarters=quarters, years=years)
 
 @dashboard_blueprint.route('/get-summary', methods=['GET'])
+@login_required
 def get_summary():
     filter_type = request.args.get("filter_type")
     filter_value = request.args.get("filter_value")
@@ -87,7 +88,13 @@ def get_summary():
     filter_type = "year" if filter_type is None else filter_type
     filter_value = str(datetime.datetime.now().year) if filter_value is None else filter_value
 
-    query = apply_period_filter(dashboard_queries["summary"], filter_type, filter_value)
+    range_start = range_end = None
+
+    if (filter_type == "range"):
+        range_start = request.args.get("filter_value_start")
+        range_end = request.args.get("filter_value_end")
+
+    query = apply_period_filter(dashboard_queries["summary"], filter_type, filter_value, range_start, range_end)
 
     with dwh_engine.connect() as conn:
         summary_df = pd.read_sql_query(text(query), conn)
@@ -108,6 +115,7 @@ def get_summary():
 
 
 @dashboard_blueprint.route('/get-period-revenue', methods=['GET'])
+@login_required
 def get_period_revenue():
     filter_type = request.args.get("filter_type")
     filter_value = request.args.get("filter_value")
@@ -115,7 +123,13 @@ def get_period_revenue():
     filter_type = "year" if filter_type is None else filter_type
     filter_value = str(datetime.datetime.now().year) if filter_value is None else filter_value
 
-    query = apply_period_filter(dashboard_queries["period_revenue"], filter_type, filter_value)
+    range_start = range_end = None
+
+    if (filter_type == "range"):
+        range_start = request.args.get("filter_value_start")
+        range_end = request.args.get("filter_value_end")
+
+    query = apply_period_filter(dashboard_queries["period_revenue"], filter_type, filter_value, range_start, range_end)
 
     with dwh_engine.connect() as conn:
         revenue_df = pd.read_sql_query(text(query), conn)
@@ -144,6 +158,7 @@ def get_period_revenue():
     return fig.to_json()
 
 @dashboard_blueprint.route('/get-orders-heatmap', methods=['GET'])
+@login_required
 def get_orders_heatmap():
     filter_type = request.args.get("filter_type")
     filter_value = request.args.get("filter_value")
@@ -151,7 +166,13 @@ def get_orders_heatmap():
     filter_type = "year" if filter_type is None else filter_type
     filter_value = str(datetime.datetime.now().year) if filter_value is None else filter_value
 
-    query = apply_period_filter(dashboard_queries["orders_heatmap"], filter_type, filter_value)
+    range_start = range_end = None
+
+    if (filter_type == "range"):
+        range_start = request.args.get("filter_value_start")
+        range_end = request.args.get("filter_value_end")
+
+    query = apply_period_filter(dashboard_queries["orders_heatmap"], filter_type, filter_value, range_start, range_end)
 
     with dwh_engine.connect() as conn:
         heatmap_data = pd.read_sql_query(text(query), conn)
@@ -192,6 +213,7 @@ def get_orders_heatmap():
     return fig.to_json()
 
 @dashboard_blueprint.route('/get-gender-distribution', methods=['GET'])
+@login_required
 def get_gender_distribution():
     filter_type = request.args.get("filter_type")
     filter_value = request.args.get("filter_value")
@@ -199,7 +221,13 @@ def get_gender_distribution():
     filter_type = "year" if filter_type is None else filter_type
     filter_value = str(datetime.datetime.now().year) if filter_value is None else filter_value
 
-    query = apply_period_filter(dashboard_queries["gender_distribution"], filter_type, filter_value)
+    range_start = range_end = None
+
+    if (filter_type == "range"):
+        range_start = request.args.get("filter_value_start")
+        range_end = request.args.get("filter_value_end")
+
+    query = apply_period_filter(dashboard_queries["gender_distribution"], filter_type, filter_value, range_start, range_end)
 
     with dwh_engine.connect() as conn:
         gender_df = pd.read_sql_query(text(query), conn)
@@ -221,6 +249,7 @@ def get_gender_distribution():
     return fig.to_json()
 
 @dashboard_blueprint.route('/get-age-distribution', methods=['GET'])
+@login_required
 def get_age_distribution():
     filter_type = request.args.get("filter_type")
     filter_value = request.args.get("filter_value")
@@ -228,7 +257,13 @@ def get_age_distribution():
     filter_type = "year" if filter_type is None else filter_type
     filter_value = str(datetime.datetime.now().year) if filter_value is None else filter_value
 
-    query = apply_period_filter(dashboard_queries["age_distribution"], filter_type, filter_value)
+    range_start = range_end = None
+
+    if (filter_type == "range"):
+        range_start = request.args.get("filter_value_start")
+        range_end = request.args.get("filter_value_end")
+
+    query = apply_period_filter(dashboard_queries["age_distribution"], filter_type, filter_value, range_start, range_end)
     # query = dashboard_queries["age_distribution"]
 
     with dwh_engine.connect() as conn:
@@ -259,6 +294,7 @@ def get_age_distribution():
     return fig.to_json()
 
 @dashboard_blueprint.route('/get-gender-quartile-distribution', methods=['GET'])
+@login_required
 def get_gender_quartile_distribution():
     filter_type = request.args.get("filter_type")
     filter_value = request.args.get("filter_value")
@@ -266,7 +302,13 @@ def get_gender_quartile_distribution():
     filter_type = "year" if filter_type is None else filter_type
     filter_value = str(datetime.datetime.now().year) if filter_value is None else filter_value
 
-    query = apply_period_filter(dashboard_queries["gender_quartile_distribution"], filter_type, filter_value)
+    range_start = range_end = None
+
+    if (filter_type == "range"):
+        range_start = request.args.get("filter_value_start")
+        range_end = request.args.get("filter_value_end")
+
+    query = apply_period_filter(dashboard_queries["gender_quartile_distribution"], filter_type, filter_value, range_start, range_end)
 
     with dwh_engine.connect() as conn:
         quartile_df = pd.read_sql_query(text(query), conn)
@@ -303,6 +345,7 @@ def get_gender_quartile_distribution():
     return fig.to_json()
 
 @dashboard_blueprint.route('/get-order-status-heatmap', methods=['GET'])
+@login_required
 def get_order_status_heatmap():
     filter_type = request.args.get("filter_type")
     filter_value = request.args.get("filter_value")
@@ -310,7 +353,13 @@ def get_order_status_heatmap():
     filter_type = "year" if filter_type is None else filter_type
     filter_value = str(datetime.datetime.now().year) if filter_value is None else filter_value
 
-    query = apply_period_filter(dashboard_queries["order_status_heatmap"], filter_type, filter_value)
+    range_start = range_end = None
+
+    if (filter_type == "range"):
+        range_start = request.args.get("filter_value_start")
+        range_end = request.args.get("filter_value_end")
+
+    query = apply_period_filter(dashboard_queries["order_status_heatmap"], filter_type, filter_value, range_start, range_end)
 
     with dwh_engine.connect() as conn:
         heatmap_df = pd.read_sql_query(text(query), conn)

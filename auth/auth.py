@@ -98,13 +98,3 @@ def auth_profile_update():
         current_user.save()
         return redirect(url_for('auth.auth_profile'))
     return render_template('auth/profile.html', form=form, title='DMA - Profile', page='profile')
-
-@auth_blueprint.route('/settings', methods=['GET'])
-@login_required
-def auth_settings():
-    return render_template('auth/settings.html', title='DMA - Settings', page='settings')
-
-@auth_blueprint.route('/settings', methods=['POST'])
-@login_required
-def auth_settings_update():
-    return redirect(url_for('auth.auth_settings'))

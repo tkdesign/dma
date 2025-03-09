@@ -347,7 +347,7 @@
                 {title:"Occupation", field:"occupation", sorter:"string", headerFilter:"input"},
                 {title:"Actions", field:"actions", headerSort: false, formatter: function(cell) {
                     const data = cell.getRow().getData();
-                    let user_edit_url = "{{ url_for('admin.user_edit', user_id=0) }}".replace('0', data.id);
+                    const user_edit_url = "{{ url_for('admin.user_edit', user_id=0) }}".replace('0', data.id);
                     return "<a href='" + user_edit_url + "' class='btn btn-sm btn-primary'>Edit</a>";
                 }, width:100}
             ]
@@ -405,7 +405,8 @@
                     if(data.status === "RUNNING" && data.task_id) {
                         return "<button class='btn btn-sm btn-danger stop-task-btn' data-task-id='" + data.task_id + "'>Stop</button>";
                     } else if (data.status === "SUCCESS" && data.task_id) {
-                        return "<a href='/admin/reports/view/" + data.id + "' class='btn btn-sm btn-primary'>View</a>";
+                        const view_report_url = "{{ url_for('reports.view_report', report_id=0) }}".replace('0', data.id);
+                        return "<a href='" + view_report_url + "' class='btn btn-sm btn-primary'>View</a>";
                     }
                     return "";
                 }, width: 100}
@@ -419,31 +420,73 @@
         const createReportBtn = document.getElementById('create-report-btn');
         if (createReportBtn) {
             createReportBtn.addEventListener('click', (e) => {
-                {# Передача параметра  #}
-                fetch("{{ url_for('reports.create_report') }}", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"}
-                })
-                .then(response => response.json())
-                .then(data => {
-                    const error = data.hasOwnProperty("error");
-                    if (error) {
-                        alert("Error creating report: " + data.error);
+                const reportTypeFilter = document.getElementById('report-type-filter');
+                if (reportTypeFilter) {
+                    const selectedOption = reportTypeFilter.options[reportTypeFilter.selectedIndex];
+                    if (!selectedOption) {
+                        alert("Please select a report type.");
                         return;
                     }
-                    const taskId = (data.hasOwnProperty("task_id") ? data.task_id : null);
-                    alert("Report creation started. Task ID: " + taskId);
-                    table.setData();
-                })
-                .catch(error => {
-                    console.error("Error creating report:", error);
-                });
+
+                    let date_filter_type = '';
+                    let date_filter_value = '';
+                    let start_date_filter = '';
+                    let end_date_filter = '';
+                    const date_filter = document.querySelector('input[name="date_filter"]:checked');
+                    if (date_filter) {
+                        date_filter_type = date_filter.value;
+
+                        if (date_filter_type === 'date-range') {
+                            date_filter_type = 'range';
+                            start_date_filter = document.getElementById('start-date-filter').value;
+                            end_date_filter = document.getElementById('end-date-filter').value;
+                        } else if (date_filter_type === 'month') {
+                            date_filter_value = document.getElementById('month-filter').value;
+                        } else if (date_filter_type === 'quarter') {
+                            date_filter_value = document.getElementById('quarter-filter').value;
+                        } else if (date_filter_type === 'year') {
+                            date_filter_value = document.getElementById('year-filter').value;
+                        }
+                    }
+
+                    const subfilters = {};
+                    const selectedSubfilters = selectedOption.getAttribute('data-subfilters');
+                    if (selectedSubfilters && selectedSubfilters.length > 0) {
+                        selectedSubfilters.split(',').forEach(subfilter => {
+                            const filter = subfilter.trim();
+                            const filterElement = document.getElementById(filter);
+                            if (filterElement) {
+                                subfilters[filter] = filterElement.value;
+                            }
+                        });
+                    }
+
+                    fetch("{{ url_for('reports.create_report') }}", {
+                        method: "POST",
+                        headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({report_type: selectedOption.value, date_filter_type: date_filter_type, date_filter_value: date_filter_value, start_date_filter: start_date_filter, end_date_filter: end_date_filter, subfilters: subfilters})
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        const error = data.hasOwnProperty("error");
+                        if (error) {
+                            alert("Error creating report: " + data.error);
+                            return;
+                        }
+                        const taskId = (data.hasOwnProperty("task_id") ? data.task_id : null);
+                        alert("Report creation started. Task ID: " + taskId);
+                        table.setData();
+                    })
+                    .catch(error => {
+                        console.error("Error creating report:", error);
+                    });
+                }
             });
         }
 
-        const endETLBtn = document.querySelectorAll('.stop-task-btn');
-        if (endETLBtn) {
-            endETLBtn.forEach(btn => {
+        const endGenerateReportBtn = document.querySelectorAll('.stop-task-btn');
+        if (endGenerateReportBtn) {
+            endGenerateReportBtn.forEach(btn => {
                 btn.addEventListener("click", function(e) {
                     if(e.target && e.target.matches("button.stop-task-btn")) {
                         const taskId = e.target.getAttribute("data-task-id");
@@ -462,6 +505,75 @@
                         });
                     }
                 });
+            });
+        }
+
+        const reportTypeFilter = document.getElementById('report-type-filter');
+        if (reportTypeFilter) {
+            reportTypeFilter.addEventListener('change', (e) => {
+                Array.from(e.target.options).forEach(option => {
+                    const subfilters = option.getAttribute('data-subfilters');
+                    if (subfilters) {
+                        subfilters.split(',').forEach(subfilter => {
+                            const filter = subfilter.trim();
+                            const filterElement = document.getElementById(filter);
+                            if (filterElement) {
+                                filterElement.parentElement.parentElement.classList.add('d-none');
+                            }
+                        });
+                    }
+                });
+
+                const selectedOption = e.target.options[e.target.selectedIndex];
+                const selectedSubfilters = selectedOption.getAttribute('data-subfilters');
+                if (selectedSubfilters && selectedSubfilters.length > 0) {
+                    let date_filter_type = '';
+                    let date_filter_value = '';
+                    let start_date_filter = '';
+                    let end_date_filter = '';
+                    const date_filter = document.querySelector('input[name="date_filter"]:checked');
+                    if (date_filter) {
+                        date_filter_type = date_filter.value;
+                        if (date_filter_type === 'date-range') {
+                            date_filter_type = 'range';
+                            start_date_filter = document.getElementById('start-date-filter').value;
+                            end_date_filter = document.getElementById('end-date-filter').value;
+                        } else if (date_filter_type === 'month') {
+                            date_filter_value = document.getElementById('month-filter').value;
+                        } else if (date_filter_type === 'quarter') {
+                            date_filter_value = document.getElementById('quarter-filter').value;
+                        } else if (date_filter_type === 'year') {
+                            date_filter_value = document.getElementById('year-filter').value;
+                        }
+                    }
+
+                    selectedSubfilters.split(',').forEach(subfilter => {
+                        const filter = subfilter.trim();
+                        const filterElement = document.getElementById(filter);
+                        if (filterElement) {
+                            fetch("{{ url_for('reports.get_subfilter_options') }}", {
+                                method: "POST",
+                                headers: {"Content-Type": "application/json"},
+                                body: JSON.stringify({report_type: selectedOption.value, date_filter_type: date_filter_type, date_filter_value: date_filter_value, start_date_filter: start_date_filter, end_date_filter: end_date_filter, subfilter: filter})
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (!data.hasOwnProperty('elements')) {
+                                    return;
+                                }
+                                filterElement.innerHTML = '';
+                                data.elements.forEach(option => {
+                                    filterElement.innerHTML += `<option value="${option.key}">${option.value}</option>`;
+                                });
+                            })
+                            .catch(error => {
+                                console.error(`Error loading filter "${filter}":`, error);
+                            });
+
+                            filterElement.parentElement.parentElement.classList.remove('d-none');
+                        }
+                    });
+                }
             });
         }
     });

@@ -2,7 +2,6 @@
 {% block content %}
     <div class="container-fluid">
         <h1>Reports</h1>
-        <form id="filter-form">
         <div class="row my-4">
             <div class="col-md-3 d-flex align-items-end">
                 <div class="w-100">
@@ -72,11 +71,24 @@
                     <label for="category-filter" class="form-label">Report type</label>
                     <select class="form-select" id="report-type-filter">
                         {% for key, value in report_types.items() %}
-                            <option value="{{ key }}">{{ value }}</option>
+                            <option value="{{ key }}"{% if value.subfilters %} data-subfilters="{{ value.subfilters.keys()|join(',') }}"{% endif %}>{{ value.title }}</option>
                         {% endfor %}
                     </select>
                 </div>
             </div>
+            {% for key, value in report_types.items() %}
+                {% if "subfilters" in value %}
+                    {% for key2, value2 in value.subfilters.items() %}
+                    <div class="col-md-3 d-flex align-items-end d-none">
+                        <div class="w-100">
+                            <label for="{{ key2 }}" class="form-label">{{ value2.title }}</label>
+                            <select class="form-select" id="{{ key2 }}">
+                            </select>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            {% endfor %}
         </div>
         <div class="row my-4">
             <div class="col-md-3 d-flex align-items-end">
@@ -86,7 +98,6 @@
                 </button>
             </div>
         </div>
-        </form>
         <div class="row my-4">
             <div id="reports-table"></div>
         </div>

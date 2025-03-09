@@ -12,17 +12,7 @@ import gc
 from celeryconfig import broker_url, result_backend, PROD_DB_URI, STAGE_DB_URI, DWH_DB_URI
 from reportsconfig import reports_queries
 
-from l_tasks.load_dim_date import load_dim_date
-from l_tasks.load_dim_time import load_dim_time
-from l_tasks.load_dim_customer import load_dim_customer
-from l_tasks.load_dim_address import load_dim_address
-from l_tasks.load_dim_attribute import load_dim_attribute
-from l_tasks.load_dim_product import load_dim_product
-from l_tasks.load_bridge_product_attribute import load_bridge_product_attribute
-from l_tasks.load_dim_order_state import load_dim_order_state
-from l_tasks.load_fact_cart_line import load_fact_cart_line
-from l_tasks.load_fact_order_line import load_fact_order_line
-from l_tasks.load_fact_order_history import load_fact_order_history
+from load_to_dwh import load_dim_date, load_dim_time, load_dim_address, load_dim_customer, load_dim_attribute, load_dim_product, load_bridge_product_attribute, load_dim_order_state, load_fact_cart_line, load_fact_order_line, load_fact_order_history
 from models import Report, db
 
 celery_app = Celery('etl_tasks', broker=broker_url, backend=result_backend)

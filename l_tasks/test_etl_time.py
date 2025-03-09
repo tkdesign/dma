@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine
-from load_dim_time import load_dim_time
+from load_to_dwh import load_dim_time
 from celeryconfig import DWH_DB_URI
 
 dwh_engine = create_engine(DWH_DB_URI)

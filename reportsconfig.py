@@ -1,153 +1,3 @@
-"""
-CREATE TABLE IF NOT EXISTS public.bridge_product_attribute
-(
-    product_sk bigint NOT NULL,
-    attribute_sk bigint NOT NULL,
-    productattributeid_bk bigint,
-    attributeid_bk bigint,
-    CONSTRAINT bridge_product_attribute_pkey PRIMARY KEY (product_sk, attribute_sk)
-);
-
-CREATE TABLE IF NOT EXISTS public.dim_address
-(
-    address_key bigserial NOT NULL,
-    addressid_bk bigint NOT NULL,
-    customerid_bk bigint,
-    country character varying COLLATE pg_catalog."default",
-    state character varying COLLATE pg_catalog."default",
-    city character varying COLLATE pg_catalog."default",
-    zipcode character varying COLLATE pg_catalog."default",
-    valid_from date,
-    valid_to date,
-    CONSTRAINT dim_address_pkey PRIMARY KEY (address_key)
-);
-
-CREATE TABLE IF NOT EXISTS public.dim_attribute
-(
-    attribute_key bigserial NOT NULL,
-    attributeid_bk bigint NOT NULL,
-    attribute_name character varying COLLATE pg_catalog."default" NOT NULL,
-    attribute_group character varying COLLATE pg_catalog."default",
-    CONSTRAINT dim_attribute_pkey PRIMARY KEY (attribute_key)
-);
-
-CREATE TABLE IF NOT EXISTS public.dim_customer
-(
-    customer_key bigserial NOT NULL,
-    customerid_bk bigint NOT NULL,
-    hashedemail character varying COLLATE pg_catalog."default" NOT NULL,
-    defaultgroup character varying COLLATE pg_catalog."default" NOT NULL,
-    birthdate date,
-    gender character varying COLLATE pg_catalog."default",
-    businessaccount boolean,
-    active boolean,
-    valid_from date,
-    valid_to date,
-    CONSTRAINT dim_customer_pkey PRIMARY KEY (customer_key)
-);
-
-CREATE TABLE IF NOT EXISTS public.dim_date
-(
-    date_key bigserial NOT NULL,
-    date date NOT NULL,
-    year integer NOT NULL,
-    quarter integer NOT NULL,
-    month integer NOT NULL,
-    month_name character varying COLLATE pg_catalog."default" NOT NULL,
-    day integer NOT NULL,
-    day_of_week integer NOT NULL,
-    day_name character varying COLLATE pg_catalog."default" NOT NULL,
-    week_of_year integer NOT NULL,
-    is_weekend boolean DEFAULT false,
-    CONSTRAINT dim_date_pkey PRIMARY KEY (date_key)
-);
-
-CREATE TABLE IF NOT EXISTS public.dim_order_state
-(
-    orderstate_key bigserial NOT NULL,
-    orderstateid_bk bigint NOT NULL,
-    current_state character varying COLLATE pg_catalog."default",
-    valid_from date,
-    valid_to date,
-    CONSTRAINT dim_orderstate_pkey PRIMARY KEY (orderstate_key)
-);
-
-CREATE TABLE IF NOT EXISTS public.dim_product
-(
-    product_key bigserial NOT NULL,
-    productid_bk bigint NOT NULL,
-    productattributeid_bk bigint,
-    productname character varying COLLATE pg_catalog."default" NOT NULL,
-    manufacturer character varying COLLATE pg_catalog."default",
-    defaultcategory character varying COLLATE pg_catalog."default",
-    market_group character varying COLLATE pg_catalog."default",
-    market_subgroup character varying COLLATE pg_catalog."default",
-    market_gender character varying COLLATE pg_catalog."default",
-    price numeric,
-    active boolean,
-    valid_from date,
-    valid_to date,
-    CONSTRAINT dim_product_pkey PRIMARY KEY (product_key)
-);
-
-CREATE TABLE IF NOT EXISTS public.dim_time
-(
-    time_key bigserial NOT NULL,
-    "time" time without time zone NOT NULL,
-    hour integer NOT NULL,
-    CONSTRAINT dim_time_pkey PRIMARY KEY (time_key)
-);
-
-CREATE TABLE IF NOT EXISTS public.fact_cart_line
-(
-    cartline_key bigserial NOT NULL,
-    cartid_bk bigint NOT NULL,
-    product_sk bigint NOT NULL,
-    customer_sk bigint NOT NULL,
-    date_sk bigint NOT NULL,
-    time_sk bigint NOT NULL,
-    quantity integer NOT NULL,
-    CONSTRAINT fact_cart_line_pkey PRIMARY KEY (cartline_key)
-);
-
-CREATE TABLE IF NOT EXISTS public.fact_order_history
-(
-    orderhistory_key bigserial NOT NULL,
-    orderhistoryid_bk bigint NOT NULL,
-    orderstate_sk bigint NOT NULL,
-    orderid_bk bigint NOT NULL,
-    orderstateid_bk bigint NOT NULL,
-    date_sk bigint NOT NULL,
-    time_sk bigint NOT NULL,
-    CONSTRAINT fact_order_history_pkey PRIMARY KEY (orderhistory_key)
-);
-
-CREATE TABLE IF NOT EXISTS public.fact_order_line
-(
-    orderline_key bigserial NOT NULL,
-    orderid_bk bigint NOT NULL,
-    orderdetailid_bk bigint NOT NULL,
-    cartid_bk bigint,
-    product_sk bigint NOT NULL,
-    customer_sk bigint NOT NULL,
-    address_sk bigint,
-    date_sk bigint NOT NULL,
-    time_sk bigint NOT NULL,
-    quantity integer NOT NULL,
-    price numeric(20, 6),
-    price_tax_incl numeric(20, 6),
-    amount numeric(20, 6),
-    amount_tax_incl numeric(20, 6),
-    paid numeric(20, 6),
-    paid_tax_incl numeric(20, 6),
-    taxrate numeric(20, 6),
-    conversion_rate numeric,
-    paymenttype character varying(300) COLLATE pg_catalog."default",
-    carrier character varying(300) COLLATE pg_catalog."default",
-    CONSTRAINT fact_order_line_pkey PRIMARY KEY (orderline_key)
-);
-"""
-
 filter_queries = {
     "min_date": """
     SELECT MIN(date) AS min_date FROM (
@@ -339,6 +189,7 @@ reports_queries = {
             COUNT(dc.customer_key) AS customers_count
         FROM dim_customer dc
         WHERE dc.active = TRUE
+        AND ({filter})
         GROUP BY dc.gender;
         """
     },
@@ -381,17 +232,19 @@ reports_queries = {
             "market_group": {
                 "title": "Group",
                 "menu_query": """
-                SELECT DISTINCT market_group
-                FROM dim_product
-                WHERE {filter};
+                SELECT market_group
+                FROM dim_product p
+                WHERE {filter}
+                GROUP BY market_group
                 """
             },
             "market_subgroup": {
                 "title": "Subgroup",
                 "menu_query": """
-                SELECT DISTINCT market_subgroup
-                FROM dim_product
-                WHERE {filter};
+                SELECT market_subgroup
+                FROM dim_product p
+                WHERE {filter}
+                GROUP BY market_subgroup;
                 """
             },
         }
@@ -404,9 +257,10 @@ reports_queries = {
             "market_gender": {
                 "title": "Gender",
                 "menu_query": """
-                SELECT DISTINCT market_gender
-                FROM dim_product
-                WHERE {filter};
+                SELECT market_gender
+                FROM dim_product p
+                WHERE {filter}
+                GROUP BY p.market_gender;
                 """
             },
         }

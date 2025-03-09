@@ -35,6 +35,21 @@ def home():
     else:
         return render_template('index.html', title='DMA - e-commerce data management application')
 
+@app.errorhandler(404)
+def page_not_found(e):
+    if current_user.is_authenticated:
+        return render_template('error.html', layout='user/layout.html', error_code=404, error_message='Oops! The page you are looking for does not exist.', redirect_url='dashboard.dashboard_index', redirect_text='Go to Dashboard'), 404
+    return render_template('error.html', layout='guest/layout.html', error_code=404, error_message='Oops! The page you are looking for does not exist.', redirect_url='home.home', redirect_text='Go to Homepage'), 404
+
+@app.errorhandler(403)
+def forbidden(e):
+    return render_template('error.html', layout='guest/layout.html', error_code=403, error_message='You do not have permission to access this page.', redirect_url='home.home', redirect_text='Go to Homepage'), 403
+@app.errorhandler(500)
+def internal_server_error(e):
+    if current_user.is_authenticated:
+        return render_template('error.html', layout='user/layout.html', error_code=500, error_message='An internal server error occurred.', redirect_url='dashboard.dashboard_index', redirect_text='Go to Dashboard'), 500
+    return render_template('error.html', layout='guest/layout.html', error_code=500, error_message='An internal server error occurred.', redirect_url='home.home', redirect_text='Go to Homepage'), 500
+
 app.register_blueprint(auth_blueprint)
 app.register_blueprint(dashboard_blueprint)
 app.register_blueprint(reports_blueprint)

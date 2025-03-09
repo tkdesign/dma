@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine
-from load_dim_order_state import load_dim_order_state
+from load_to_dwh import load_dim_order_state
 from celeryconfig import STAGE_DB_URI, DWH_DB_URI
 
 stage_engine = create_engine(STAGE_DB_URI)

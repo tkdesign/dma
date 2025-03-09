@@ -1,0 +1,44 @@
+{% extends layout %}
+{% block content %}
+<div class="container-fluid">
+    {% if current_user.is_authenticated %}
+    <div class="row my-4">
+        <main class="col-12 my-4">
+            <div class="container text-center">
+                <h1 class="display-1">{{ error_code }}</h1>
+                <p class="lead">{{ error_message }}</p>
+                <a href="{{ url_for(redirect_url) }}" class="btn btn-primary btn-lg mt-3">{{ redirect_text }}</a>
+            </div>
+        </main>
+    </div>
+    {% else %}
+    <div class="row">
+        <div class="offcanvas offcanvas-start" data-bs-scroll="true" data-bs-backdrop="false" tabindex="-1"
+            id="offcanvasSidebar" aria-labelledby="offcanvasSidebarLabel">
+            <div class="offcanvas-header">
+                <h5 class="offcanvas-title" id="offcanvasSidebarLabel">MENU</h5>
+                <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"
+                    aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body">
+                <div class="list-group list-group-flush w-100">
+                    <a href="{{ url_for('auth.auth_login_form') }}" class="list-group-item list-group-item-action">
+                        <i class="bi bi-box-arrow-in-right me-2"></i> Log in
+                    </a>
+                    <a href="{{ url_for('auth.auth_signup_form') }}" class="list-group-item list-group-item-action">
+                        <i class="bi bi-person-plus me-2"></i> Sign up
+                    </a>
+                </div>
+            </div>
+        </div>
+        <main class="col-12 my-4">
+            <div class="container text-center">
+                <h1 class="display-1">{{ error_code }}</h1>
+                <p class="lead">{{ error_message }}</p>
+                <a href="{{ url_for(redirect_url) }}" class="btn btn-primary btn-lg mt-3">{{ redirect_text }}</a>
+            </div>
+        </main>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -135,7 +135,7 @@ def user_edit(user_id):
         form.department.data = user.department
         form.occupation.data = user.occupation
         form.active.data = user.active
-        return render_template('admin/user.html', title='DMA - Edit User', page='users', user=user, form=form)
+        return render_template('admin/user.html', title='DMA - Edit User', page='users', user=user, form=form, user_id=user.id)
 
     return redirect(url_for('admin.users'))
 
@@ -167,6 +167,8 @@ def user_update(user_id):
         user.department = form.department.data
         user.occupation = form.occupation.data
         user.active = form.active.data
+        user.save()
+        return redirect(url_for('admin.user_edit', user_id=user_id))
 
 @admin_blueprint.route('/etl_control', methods=['GET'])
 @login_required

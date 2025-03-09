@@ -3,7 +3,7 @@
     <div class="container-fluid">
         <h1>User profile</h1>
         <div class="row" id="edit-profile-container">
-            <form action="{{ url_for('auth.auth_profile_update') }}" method="post" novalidate id="edit-profile-form">
+            <form action="{{ url_for('admin.user_update', user_id=user_id) }}" method="post" novalidate id="edit-profile-form">
                 {{ form.hidden_tag() }}
                 <div class="mb-3">
                     {{ form.email.label(class='form-label') }}<br>
