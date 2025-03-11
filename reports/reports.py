@@ -10,7 +10,6 @@ from dashboard.dashboard import apply_period_filter
 from models import Report
 from reportsconfig import filter_queries, reports_queries
 from tasks import build_report_task
-from admin.admin import is_any_task_running
 
 reports_blueprint = Blueprint('reports', __name__)
 
@@ -174,8 +173,8 @@ def create_report():
     date_filter_value = str(current_date.year) if date_filter_value is None else date_filter_value
     range_start = range_end = None
     if (date_filter_type == "range"):
-        range_start = request.args.get("filter_value_start")
-        range_end = request.args.get("filter_value_end")
+        range_start = request.json.get("start_date_filter")
+        range_end = request.json.get("end_date_filter")
 
     query = reports_queries[report_type].get("query")
 
