@@ -73,6 +73,10 @@ class EtlLog(db.Model):
         self.started_at = started_at
         self.status = status
 
+    def save(self):
+        db.session.add(self)
+        db.session.commit()
+
     def get(log_id):
         return EtlLog.query.get(log_id)
 
@@ -95,12 +99,17 @@ class Report(db.Model):
     def __repr__(self):
         return '<Report {}>'.format(self.id)
 
-    def __init__(self, user_id, report_type, parameters, started_at, status):
+    def __init__(self, user_id, report_type, parameters, started_at, status, task_id):
         self.user_id = user_id
         self.report_type = report_type
         self.parameters = parameters
         self.started_at = started_at
         self.status = status
+        self.task_id = task_id
+
+    def save(self):
+        db.session.add(self)
+        db.session.commit()
 
     def get(report_id):
         return Report.query.get(report_id)

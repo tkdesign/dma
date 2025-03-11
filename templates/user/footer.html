@@ -404,7 +404,7 @@
                     const data = cell.getRow().getData();
                     if(data.status === "RUNNING" && data.task_id) {
                         return "<button class='btn btn-sm btn-danger stop-task-btn' data-task-id='" + data.task_id + "'>Stop</button>";
-                    } else if (data.status === "SUCCESS" && data.task_id) {
+                    } else if (data.status === "SUCCESS") {
                         const view_report_url = "{{ url_for('reports.view_report', report_id=0) }}".replace('0', data.id);
                         return "<a href='" + view_report_url + "' class='btn btn-sm btn-primary'>View</a>";
                     }
@@ -576,6 +576,30 @@
                 }
             });
         }
+    });
+</script>
+{% elif page == 'view_report' %}
+<script src="{{ url_for('static', filename='assets/plotly/plotly.min.js') }}"></script>
+<script src="{{ url_for('static', filename='assets/plotly/plotly-locale-sk.js') }}"></script>
+<script>
+    reportData = {{ report.result|tojson }};
+    function showReport() {
+        if (!reportData.hasOwnProperty('layout')) {
+            return;
+        }
+        const containerId = 'chart-container';
+        const container = document.getElementById(containerId);
+        if (!container) {
+            console.error(`Container with ID "${containerId}" not found.`);
+            return;
+        }
+        reportData.layout.width = 400;
+        reportData.layout.height = 300;
+        Plotly.newPlot(containerId, reportData.data, reportData.layout)
+            .catch(error => console.error(`Error plotting "${containerId}":`, error));
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+        showReport();
     });
 </script>
 {% elif page == 'profile' %}

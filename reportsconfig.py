@@ -55,7 +55,9 @@ dashboard_queries = {
         END AS conversion_rate,
         AVG(EXTRACT(YEAR FROM AGE(dc.birthdate))) AS avg_age
     FROM orders o
-    LEFT JOIN dim_customer dc ON o.customer_sk = dc.customer_key;
+    LEFT JOIN dim_customer dc ON o.customer_sk = dc.customer_key
+    WHERE {valid_customer_filter}
+    ;
     """,
     "period_revenue": """    
     SELECT
@@ -70,7 +72,7 @@ dashboard_queries = {
     FROM fact_order_line fo
     JOIN dim_date d ON fo.date_sk = d.date_key
     JOIN dim_product dp ON fo.product_sk = dp.product_key
-    WHERE {filter}
+    WHERE {filter} AND {valid_product_filter}
     GROUP BY period
     ORDER BY period;
     """,
@@ -119,7 +121,7 @@ dashboard_queries = {
         dc.gender, 
         COUNT(dc.customer_key) AS customers_count
     FROM dim_customer dc
-    WHERE dc.active = TRUE
+    WHERE dc.active = TRUE AND {valid_customer_filter}
     GROUP BY dc.gender;
     """,
     "age_distribution": """
@@ -128,7 +130,7 @@ dashboard_queries = {
         AVG(fo.paid_tax_incl) AS avg_order_value
     FROM fact_order_line fo
     JOIN dim_customer dc ON fo.customer_sk = dc.customer_key
-    WHERE fo.date_sk IN (SELECT date_key FROM dim_date WHERE {filter})
+    WHERE fo.date_sk IN (SELECT date_key FROM dim_date WHERE {filter}) AND {valid_customer_filter}
     GROUP BY age_range
     ORDER BY age_range;
     """,
@@ -141,7 +143,7 @@ dashboard_queries = {
             NTILE(4) OVER (ORDER BY fo.paid_tax_incl DESC) AS quartile
         FROM fact_order_line fo
         JOIN dim_customer dc ON fo.customer_sk = dc.customer_key
-        WHERE fo.date_sk IN (SELECT date_key FROM dim_date WHERE {filter})
+        WHERE fo.date_sk IN (SELECT date_key FROM dim_date WHERE {filter}) AND {valid_customer_filter}
     ),
     quartile_gender_count AS (
         SELECT 
@@ -174,7 +176,7 @@ dashboard_queries = {
     FROM fact_order_history foh
     JOIN dim_order_state dos ON foh.orderstate_sk = dos.orderstate_key
     JOIN dim_date dd ON foh.date_sk = dd.date_key
-    WHERE {filter}
+    WHERE {filter} AND {valid_order_state_filter}
     GROUP BY dos.current_state, dd.month
     ORDER BY dd.month;
 """,
@@ -188,10 +190,9 @@ reports_queries = {
             dc.gender, 
             COUNT(dc.customer_key) AS customers_count
         FROM dim_customer dc
-        WHERE dc.active = TRUE
-        AND ({filter})
+        WHERE dc.active = TRUE AND {valid_customer_filter}
         GROUP BY dc.gender;
-        """
+        """,
     },
     "age_distribution": {
         "title": "Age distribution",
@@ -201,7 +202,7 @@ reports_queries = {
             AVG(fo.paid_tax_incl) AS avg_order_value
         FROM fact_order_line fo
         JOIN dim_customer dc ON fo.customer_sk = dc.customer_key
-        WHERE fo.date_sk IN (SELECT date_key FROM dim_date WHERE {filter})
+        WHERE fo.date_sk IN (SELECT date_key FROM dim_date WHERE {filter}) AND {valid_customer_filter}
         GROUP BY age_range
         ORDER BY age_range;
         """
@@ -221,7 +222,7 @@ reports_queries = {
         FROM fact_order_line fo
         JOIN dim_date d ON fo.date_sk = d.date_key
         JOIN dim_product dp ON fo.product_sk = dp.product_key
-        WHERE {filter}
+        WHERE {filter} AND {valid_product_filter}
         AND (
             {group_filter}
         )

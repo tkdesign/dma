@@ -104,6 +104,7 @@ def get_subfilter_options():
     if not current_user.is_authenticated:
         return jsonify({"error": "Unauthorized"}), 403
 
+    current_date = datetime.datetime.now()
     report_type = request.json.get('report_type')
     subfilter = request.json.get('subfilter')
 
@@ -120,7 +121,7 @@ def get_subfilter_options():
     date_filter_type = request.json.get("date_filter_type")
     date_filter_value = request.json.get("date_filter_value")
     date_filter_type = "year" if date_filter_type is None else date_filter_type
-    date_filter_value = str(datetime.datetime.now().year) if date_filter_value is None else date_filter_value
+    date_filter_value = str(current_date.year) if date_filter_value is None else date_filter_value
     range_start = range_end = None
     if (date_filter_type == "range"):
         range_start = request.args.get("filter_value_start")
@@ -151,17 +152,26 @@ def create_report():
     if report_type not in reports_queries:
         return jsonify({"error": "Invalid report type"}), 200
 
-    where_clause = {}
+    where_clause = []
 
-    for subfilter_key, subfilter_value  in subfilters:
+    for subfilter_key, subfilter_value  in subfilters.items():
         if subfilter_key in reports_queries[report_type]["subfilters"]:
-            pass
-            # where_clause.insert(reports_queries[report_type]["subfilters"][subfilter].get("where_clause"))
+            if subfilter_value != "[Any]":
+                if subfilter_key == "market_group":
+                    where_clause.append(f"dp.market_group = '{subfilter_value}'")
+                elif subfilter_key == "market_subgroup":
+                    where_clause.append(f"dp.market_subgroup = '{subfilter_value}'")
+
+    if len(where_clause) == 0:
+        where_clause.append("1 = 1")
 
     date_filter_type = request.json.get("date_filter_type")
     date_filter_value = request.json.get("date_filter_value")
+
+    current_date = datetime.datetime.now()
+
     date_filter_type = "year" if date_filter_type is None else date_filter_type
-    date_filter_value = str(datetime.datetime.now().year) if date_filter_value is None else date_filter_value
+    date_filter_value = str(current_date.year) if date_filter_value is None else date_filter_value
     range_start = range_end = None
     if (date_filter_type == "range"):
         range_start = request.args.get("filter_value_start")
@@ -172,15 +182,18 @@ def create_report():
     if not query:
         return jsonify({"error": "No query"}), 200
 
-    query = apply_period_filter(query, date_filter_type, date_filter_value, range_start, range_end)
+    query = apply_period_filter(query, current_date, date_filter_type, date_filter_value, range_start, range_end)
+    query = query.format(group_filter=" AND ".join(where_clause))
 
-    # query = apply_additional_filter(query, report_type, subfilter)
+    parameters = {
+        "user_id": current_user.id,
+        "report_type": report_type,
+        "query": query,
+    }
 
-    # task = build_report_task.delay(current_user.id, parameters)
+    task = build_report_task.delay(parameters)
 
-    # return jsonify({"task_id": task.id}), 200
-
-    return jsonify({"task_id": 1}), 200
+    return jsonify({"task_id": task.id}), 200
 
 @reports_blueprint.route('/report_data', methods=['GET'])
 @login_required

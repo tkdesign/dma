@@ -117,6 +117,7 @@ def load_dim_address(self, stage_engine, dwh_engine):
     print('Start processing...')
 
     today = date.today()
+    valid_to = today - pd.DateOffset(days=1)
     min_date = datetime(2000, 1, 1)
     chunksize = 10000
 
@@ -162,7 +163,7 @@ def load_dim_address(self, stage_engine, dwh_engine):
             INSERT INTO dma_dwh.public.dim_address (addressid_bk, customerid_bk, country, state, city, zipcode, valid_from, valid_to)
             VALUES (:addressid_bk, :customerid_bk, :country, :state, :city, :zipcode, :valid_from, '9999-12-31');
             """)
-            valid_from = row['valid_from_stage'] if not pd.isna(row['valid_from_stage']) else min_date
+            valid_from = row['date_add_stage'] if not pd.isna(row['date_add_stage']) else min_date
             with dwh_engine.begin() as conn:
                 conn.execute(insert_sql, {
                     'addressid_bk': row['addressid_bk'],
@@ -184,7 +185,6 @@ def load_dim_address(self, stage_engine, dwh_engine):
             SET valid_to = :valid_to
             WHERE address_key = :address_key;
             """)
-            valid_to = today - pd.DateOffset(days=1)
             with dwh_engine.begin() as conn:
                 conn.execute(update_sql, {
                     'valid_to': valid_to,
@@ -253,6 +253,7 @@ ORDER BY
 
     chunksize = 10000
     today = date.today()
+    valid_to = today - pd.DateOffset(days=1)
     min_date = datetime(2000, 1, 1)
 
     for chunk in pd.read_sql_query(stage_query, stage_engine, chunksize=chunksize):
@@ -297,7 +298,7 @@ ORDER BY
             INSERT INTO dma_dwh.public.dim_customer (customerid_bk, hashedemail, defaultgroup, birthdate, gender, businessaccount, active, valid_from, valid_to)
             VALUES (:customerid_bk, :hashedemail, :defaultgroup, :birthdate, :gender, :businessaccount, :active, :valid_from, '9999-12-31');
             """)
-            valid_from = row['valid_from_stage'] if not pd.isna(row['valid_from_stage']) else min_date
+            valid_from = row['date_add_stage'] if not pd.isna(row['date_add_stage']) else min_date
             with dwh_engine.begin() as conn:
                 conn.execute(insert_sql, {
                     'customerid_bk': row['customerid_bk'],
@@ -320,7 +321,6 @@ ORDER BY
             SET valid_to = :valid_to
             WHERE customer_key = :customer_key;
             """)
-            valid_to = today - pd.DateOffset(days=1)
             with dwh_engine.begin() as conn:
                 conn.execute(update_sql, {
                     'valid_to': valid_to,
@@ -499,6 +499,7 @@ def load_dim_product(self, stage_engine, dwh_engine):
 
     print('Start processing...')
     today = date.today()
+    valid_to = today - pd.DateOffset(days=1)
     min_date = datetime(2000, 1, 1)
     chunksize = 10000
 
@@ -514,8 +515,8 @@ def load_dim_product(self, stage_engine, dwh_engine):
         chunk['market_group'] = chunk['market_group'].replace('', None)
         chunk['market_subgroup'] = chunk['market_subgroup'].replace('', None)
         chunk['market_gender'] = chunk['market_gender'].replace('', None)
-
         chunk['productattributeid_bk'] = chunk['productattributeid_bk'].fillna(0).astype('int64')
+
         chunk['row_hash_stage'] = chunk.apply(calc_hash_dim_product, axis=1)
         keys_pairs = list(zip(chunk['productid_bk'], chunk['productattributeid_bk']))
 
@@ -557,7 +558,7 @@ def load_dim_product(self, stage_engine, dwh_engine):
             INSERT INTO dma_dwh.public.dim_product (productid_bk, productattributeid_bk, productname, manufacturer, defaultcategory, market_group, market_subgroup, market_gender, price, active, valid_from, valid_to)
             VALUES (:productid_bk, :productattributeid_bk, :productname, :manufacturer, :defaultcategory, :market_group, :market_subgroup, :market_gender, :price, :active, :valid_from, '9999-12-31');
             """)
-            valid_from = row['valid_from_stage'] if not pd.isna(row['valid_from_stage']) else min_date
+            valid_from = row['date_add_stage'] if not pd.isna(row['date_add_stage']) else min_date
             with dwh_engine.begin() as conn:
                 conn.execute(insert_sql, {
                     'productid_bk': row['productid_bk'],
@@ -583,7 +584,6 @@ def load_dim_product(self, stage_engine, dwh_engine):
             SET valid_to = :valid_to
             WHERE product_key = :product_key;
             """)
-            valid_to = today - pd.DateOffset(days=1)
             with dwh_engine.begin() as conn:
                 conn.execute(update_sql, {
                     'valid_to': valid_to,
@@ -711,6 +711,7 @@ def load_dim_order_state(self, stage_engine, dwh_engine):
     print('Start processing...')
 
     today = date.today()
+    valid_to = today - pd.DateOffset(days=1)
     min_date = datetime(2000, 1, 1)
     chunksize = 10000
 
@@ -763,7 +764,6 @@ def load_dim_order_state(self, stage_engine, dwh_engine):
             SET valid_to = :valid_to
             WHERE orderstate_key = :orderstate_key;
             """)
-            valid_to = today - pd.DateOffset(days=1)
             with dwh_engine.begin() as conn:
                 conn.execute(update_sql, {
                     'valid_to': valid_to,

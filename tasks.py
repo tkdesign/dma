@@ -14,7 +14,7 @@ from reportsconfig import reports_queries
 
 from load_to_dwh import load_dim_date, load_dim_time, load_dim_address, load_dim_customer, load_dim_attribute, load_dim_product, load_bridge_product_attribute, load_dim_order_state, load_fact_cart_line, load_fact_order_line, load_fact_order_history
 from models import Report, db
-
+import pdb
 celery_app = Celery('etl_tasks', broker=broker_url, backend=result_backend)
 celery_app.config_from_object('celeryconfig')
 
@@ -257,6 +257,48 @@ def revoke_handler(*args, **kwargs):
         revoke_etl_log(kwargs["request"].id)
     print("Task revoked.")
 
+def revoke_etl_log(task_id):
+    # with stage_engine.connect() as conn:
+    with stage_engine.begin() as conn:
+    #     conn.rollback()
+        conn.execute(text("""
+            UPDATE etl_log
+            SET status = 'REVOKED', ended_at = :ended_at
+            WHERE task_id = :task_id
+        """), {"task_id": task_id, "ended_at": datetime.now()})
+
+def clear_stage_tables(self, tables):
+    print("Clearing stage tables...")
+    target_tables = [ config["target"] for config in tables ]
+    with stage_engine.begin() as conn:
+        for table in target_tables:
+            if self.is_aborted():
+                print("Task revoked.")
+                return
+            conn.execute(text(f"TRUNCATE TABLE {table} RESTART IDENTITY CASCADE"))
+            print(f"Table {table} truncated.")
+    print("End of clearing stage tables.")
+
+def et_table(self, table_name, query, target_table, convert_items, chunksize=10000):
+    if self.is_aborted():
+        print("Task aborted.")
+        return
+    print(f"Synchronizing table {table_name}...")
+    for chunk in pd.read_sql_query(query, con=prod_engine, chunksize=chunksize):
+        for field, convert_func in convert_items:
+            chunk[field] = chunk[field].apply(convert_func)
+        if self.is_aborted():
+            print("Task aborted.")
+            return
+        chunk.to_sql(target_table, con=stage_engine, if_exists='append', index=False, method='multi')
+        print(f"Processed {chunksize} rows.")
+        if self.is_aborted():
+            print("Task aborted.")
+            return
+        del chunk
+        gc.collect()
+    print(f"Table {table_name} synchronized.")
+
 def insert_etl_log(job_name, task_id):
     with stage_engine.begin() as conn:
         started_at = datetime.now()
@@ -285,59 +327,6 @@ def update_etl_log(log_id, status, message=None, tables_processed=None):
             "tables_processed": tables_processed,
             "log_id": log_id
         })
-
-def revoke_etl_log(task_id):
-    # with stage_engine.connect() as conn:
-    with stage_engine.begin() as conn:
-    #     conn.rollback()
-        conn.execute(text("""
-            UPDATE etl_log
-            SET status = 'REVOKED', ended_at = :ended_at
-            WHERE task_id = :task_id
-        """), {"task_id": task_id, "ended_at": datetime.now()})
-
-def clear_stage_tables(self, tables):
-    print("Clearing stage tables...")
-    target_tables = [ config["target"] for config in tables ]
-    with stage_engine.begin() as conn:
-        for table in target_tables:
-            if self.is_aborted():
-                print("Task revoked.")
-                return
-            # Test some tables
-            # if table != "sg_customer_company":
-            #     continue
-            # //Test some tables
-            conn.execute(text(f"TRUNCATE TABLE {table} RESTART IDENTITY CASCADE"))
-            print(f"Table {table} truncated.")
-    print("End of clearing stage tables.")
-
-def et_table(self, table_name, query, target_table, convert_items, chunksize=10000):
-    if self.is_aborted():
-        print("Task aborted.")
-        return
-    # Test some tables
-    # if table_name != "ps_customer_company":
-    #     return
-    # //Test some tables
-    print(f"Synchronizing table {table_name}...")
-    for chunk in pd.read_sql_query(query, con=prod_engine, chunksize=chunksize):
-        for field, convert_func in convert_items:
-            chunk[field] = chunk[field].apply(convert_func)
-        if self.is_aborted():
-            print("Task aborted.")
-            return
-        chunk.to_sql(target_table, con=stage_engine, if_exists='append', index=False, method='multi')
-        print(f"Processed {chunksize} rows.")
-        if self.is_aborted():
-            print("Task aborted.")
-            return
-        del chunk
-        gc.collect()
-        # test short cycle
-        # break
-        # //test short cycle
-    print(f"Table {table_name} synchronized.")
 
 @celery_app.task(bind=True, base=AbortableTask)
 def stage_reload_task(self, *args, **kwargs):
@@ -369,20 +358,18 @@ def stage_reload_task(self, *args, **kwargs):
                 break
             et_table(self, table_name, config["select"], config["target"], ET_TABLES_CONFIG[table_name].get("convert_fields", {}).items())
             tables_processed += 1
-            # test short cycle
-            # if tables_processed == 3:
-            #     break
-            # //test short cycle
         print("End of extracting data from production.")
         print("Stage reload completed.")
         if self.is_aborted():
             return {"status": "REVOKED", "tables": tables_processed}
         update_etl_log(log_id, "SUCCESS", "Stage reload completed", tables_processed)
-        return {"status": "SUCCESS", "tables": tables_processed}
+        ret_status = {"status": "SUCCESS", "tables": tables_processed}
     except Exception as e:
         update_etl_log(log_id, "FAILED", str(e))
         # raise e
-        return {"status": "FAILED", "tables": 0}
+        ret_status = {"status": "FAILED", "tables": 0}
+
+    return ret_status
 
 @celery_app.task(bind=True, base=AbortableTask)
 def dwh_incremental_task(self, *args, **kwargs):
@@ -427,40 +414,83 @@ def dwh_incremental_task(self, *args, **kwargs):
     finally:
         print("DWH incremental load completed.")
 
+def insert_report(user_id, report_type, parameters, task_id):
+    with dwh_engine.begin() as conn:
+        started_at = datetime.now()
+        result = conn.execute(text("""
+            INSERT INTO report (user_id, report_type, parameters, started_at, status, task_id)
+            VALUES (:user_id, :report_type, :parameters, :started_at, :status, :task_id)
+            RETURNING id
+        """),{"user_id": user_id, "report_type": report_type, "parameters": parameters, "started_at": started_at, "status": "RUNNING", "task_id": task_id})
+        row = result.fetchone()
+        return row[0] if row is not None else None
+
+def update_report(report_id, status, message=None, result='{}'):
+    with dwh_engine.begin() as conn:
+        ended_at = datetime.now()
+        conn.execute(text("""
+            UPDATE report
+            SET status = :status,
+                ended_at = :ended_at,
+                message = :message,
+                result = :result
+            WHERE id = :report_id
+        """), {
+            "status": status,
+            "ended_at": ended_at,
+            "message": message,
+            "result": result,
+            "report_id": report_id
+        })
+
 @celery_app.task(bind=True, base=AbortableTask)
 def build_report_task(self, *args, **kwargs):
     if self.is_aborted():
         print("Task aborted.")
         return
+    if args is not None and len(args) == 0:
+        print("Task aborted.")
+        return
 
-    parameters = self.request.json.get('parameters')
-    report_type = parameters.get("report_type")
+    user_id = args[0].get("user_id")
+    report_type = args[0].get("report_type")
+    query = args[0].get("query")
+    print(f"Building report {report_type}...")
+    report_id = insert_report(user_id, report_type, "{}", self.request.id)
 
-    report = Report(user_id=self.request.user_id, report_type=self.request.report_type, parameters=self.request.parameters)
-    db.session.add(report)
-    db.session.commit()
+    with dwh_engine.connect() as conn:
+        df = pd.read_sql_query(text(query), conn)
+    if self.is_aborted():
+        print("Task aborted.")
+        return
 
-    if report_type == 'gender_distribution':
-        with db.engine.connect() as conn:
-            df = pd.read_sql_query(reports_queries[report_type], conn)
-        if self.is_aborted():
-            print("Task aborted.")
-            return
-        fig = px.pie(df, values='customers_count', names='gender', title='Gender Distribution')
-        report.result = json.loads(fig.to_json())
-    elif report_type == 'age_distribution':
-        with db.engine.connect() as conn:
-            df = pd.read_sql_query(reports_queries[report_type], conn)
-        if self.is_aborted():
-            print("Task aborted.")
-            return
-        fig = px.bar(df, x='age_range', y='avg_order_value', title='Average Order Value by Age Range')
-        report.result = json.loads(fig.to_json())
+    result = '{}'
+    status = 'FAILED'
+    message = 'Unknown report type.'
 
-    db.session.commit()
-
-    print(f"Report {report.id} created.")
-
-
-
+    try:
+        if report_type == 'gender_distribution':
+            fig = px.pie(df, values='customers_count', names='gender', title='Rozdelenie podľa pohlavia')
+            result = fig.to_json()
+            status = "SUCCESS"
+            message = 'Report created successfully.'
+        elif report_type == 'age_distribution':
+            fig = px.bar(df, x='age_range', y='avg_order_value', title='Priemerná suma objednávky podľa vekového rozpätia')
+            result = fig.to_json()
+            status = "SUCCESS"
+            message = 'Report created successfully.'
+        elif report_type == 'product_group_revenue':
+            fig = px.bar(df, x='period', y='total_revenue', title='Tržby podľa skupín produktov')
+            result = fig.to_json()
+            status = "SUCCESS"
+            message = 'Report created successfully.'
+        elif report_type == 'product_gender_revenue':
+            pass
+    except Exception as e:
+        print(e)
+        message = str(e)
+    finally:
+        update_report(report_id=report_id, status=status, message=message, result=result)
+        del df
+        gc.collect()
 

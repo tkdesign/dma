@@ -1,4 +1,5 @@
 import datetime
+import calendar
 
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for
 from flask_login import current_user, login_required
@@ -15,8 +16,7 @@ dashboard_blueprint = Blueprint('dashboard', __name__)
 prod_engine = create_engine(PROD_DB_URI)
 dwh_engine = create_engine(DWH_DB_URI)
 
-def apply_period_filter(original_query, filter_type, filter_value, range_start, range_end):
-    current_date = datetime.datetime.now()
+def apply_period_filter(original_query, current_date, filter_type, filter_value, range_start, range_end):
     current_year = current_date.year
     current_month = current_date.month
     current_quarter = (current_month - 1) // 3 + 1
@@ -28,7 +28,13 @@ def apply_period_filter(original_query, filter_type, filter_value, range_start, 
         except ValueError:
             filter_value_month = current_month
             filter_value_year = current_year
-        query = original_query.format(filter="month = " + str(filter_value_month) + " AND year = " + str(filter_value_year), filter_raw="'month = " + str(filter_value_month) + " AND year = " + str(filter_value_year) + "'")
+
+        end_day = calendar.monthrange(filter_value_year, filter_value_month)[1]
+
+        valid_customer_filter = f"dc.valid_from <= '{filter_value_year}-{filter_value_month}-{end_day}' AND dc.valid_to >= '{filter_value_year}-{filter_value_month}-01'"
+        valid_product_filter = f"dp.valid_from <= '{filter_value_year}-{filter_value_month}-{end_day}' AND dp.valid_to >= '{filter_value_year}-{filter_value_month}-01'"
+        valid_order_state_filter = f"dos.valid_from <= '{filter_value_year}-{filter_value_month}-{end_day}' AND dos.valid_to >= '{filter_value_year}-{filter_value_month}-01'"
+        query = original_query.format(filter="month = " + str(filter_value_month) + " AND year = " + str(filter_value_year), filter_raw="'month = " + str(filter_value_month) + " AND year = " + str(filter_value_year) + "'", valid_customer_filter=valid_customer_filter, valid_product_filter=valid_product_filter, valid_order_state_filter=valid_order_state_filter, group_filter="{group_filter}")
     elif filter_type == "quarter" and filter_value:
         try:
             filter_value_parts = filter_value.split("-")
@@ -37,14 +43,25 @@ def apply_period_filter(original_query, filter_type, filter_value, range_start, 
         except ValueError:
             filter_value_quarter = current_quarter
             filter_value_year = current_year
+
+        start_month = (filter_value_quarter-1)*3 + 1
+        end_month = filter_value_quarter*3
+        end_day = calendar.monthrange(filter_value_year, end_month)[1]
+
+        valid_customer_filter = f"dc.valid_from <= '{filter_value_year}-{end_month}-{end_day}' AND dc.valid_to >= '{filter_value_year}-{start_month}-01'"
+        valid_product_filter = f"dp.valid_from <= '{filter_value_year}-{end_month}-{end_day}' AND dp.valid_to >= '{filter_value_year}-{start_month}-01'"
+        valid_order_state_filter = f"dos.valid_from <= '{filter_value_year}-{end_month}-{end_day}' AND dos.valid_to >= '{filter_value_year}-{start_month}-01'"
         query = original_query.format(
-            filter="quarter = " + str(filter_value_quarter) + " AND year = " + str(filter_value_year), filter_raw="'quarter = " + str(filter_value_quarter) + " AND year = " + str(filter_value_year) + "'")
+            filter="quarter = " + str(filter_value_quarter) + " AND year = " + str(filter_value_year), filter_raw="'quarter = " + str(filter_value_quarter) + " AND year = " + str(filter_value_year) + "'", valid_customer_filter=valid_customer_filter, valid_product_filter=valid_product_filter, valid_order_state_filter=valid_order_state_filter, group_filter="{group_filter}")
     elif filter_type == "year" and filter_value:
         try:
             filter_value = int(filter_value)
         except ValueError:
             filter_value = 0
-        query = original_query.format(filter="year = " + str(filter_value), filter_raw="'year = " + str(filter_value) + "'")
+        valid_customer_filter = f"dc.valid_from <= '{filter_value}-12-31' AND dc.valid_to >= '{filter_value}-01-01'"
+        valid_product_filter = f"dp.valid_from <= '{filter_value}-12-31' AND dp.valid_to >= '{filter_value}-01-01'"
+        valid_order_state_filter = f"dos.valid_from <= '{filter_value}-12-31' AND dos.valid_to >= '{filter_value}-01-01'"
+        query = original_query.format(filter="year = " + str(filter_value), filter_raw="'year = " + str(filter_value) + "'", valid_customer_filter=valid_customer_filter, valid_product_filter=valid_product_filter, valid_order_state_filter=valid_order_state_filter, group_filter="{group_filter}")
     elif filter_type == "range" and range_start or range_end:
         try:
             date_start = range_start
@@ -53,10 +70,16 @@ def apply_period_filter(original_query, filter_type, filter_value, range_start, 
             filter_value_end = datetime.datetime.strptime(date_end, "%Y-%m-%d").date()
         except ValueError:
             filter_value_start = filter_value_end = datetime.datetime.strptime(current_date, "%Y-%m-%d").date()
-        query = original_query.format(filter="date BETWEEN '" + str(filter_value_start) + "' AND '" + str(filter_value_end) + "'", filter_raw="'date BETWEEN ''" + str(filter_value_start) + "'' AND ''" + str(filter_value_end) + "'''")
+        valid_customer_filter = f"valid_from <= '{range_end}' AND valid_to >= '{range_start}'"
+        valid_product_filter = f"valid_from <= '{range_end}' AND valid_to >= '{range_start}'"
+        valid_order_state_filter = f"valid_from <= '{range_end}' AND valid_to >= '{range_start}'"
+        query = original_query.format(filter="date BETWEEN '" + str(filter_value_start) + "' AND '" + str(filter_value_end) + "'", filter_raw="'date BETWEEN ''" + str(filter_value_start) + "'' AND ''" + str(filter_value_end) + "'''", valid_customer_filter=valid_customer_filter, valid_product_filter=valid_product_filter, valid_order_state_filter=valid_order_state_filter, group_filter="{group_filter}")
     else:
         current_year = datetime.datetime.now().year
-        query = original_query.format(filter="year = " + str(current_year), filter_raw="'year = " + str(current_year) + "'")
+        valid_customer_filter = f"dc.valid_from <= '{filter_value}-12-31' AND dc.valid_to >= '{filter_value}-01-01'"
+        valid_product_filter = f"dp.valid_from <= '{filter_value}-12-31' AND dp.valid_to >= '{filter_value}-01-01'"
+        valid_order_state_filter = f"dos.valid_from <= '{filter_value}-12-31' AND dos.valid_to >= '{filter_value}-01-01'"
+        query = original_query.format(filter="year = " + str(current_year), filter_raw="'year = " + str(current_year) + "'", valid_customer_filter=valid_customer_filter, valid_product_filter=valid_product_filter, valid_order_state_filter=valid_order_state_filter, group_filter="{group_filter}")
     return query
 
 @dashboard_blueprint.before_request
@@ -85,8 +108,10 @@ def get_summary():
     filter_type = request.args.get("filter_type")
     filter_value = request.args.get("filter_value")
 
+    current_date = datetime.datetime.now()
+
     filter_type = "year" if filter_type is None else filter_type
-    filter_value = str(datetime.datetime.now().year) if filter_value is None else filter_value
+    filter_value = str(current_date.year) if filter_value is None else filter_value
 
     range_start = range_end = None
 
@@ -94,7 +119,7 @@ def get_summary():
         range_start = request.args.get("filter_value_start")
         range_end = request.args.get("filter_value_end")
 
-    query = apply_period_filter(dashboard_queries["summary"], filter_type, filter_value, range_start, range_end)
+    query = apply_period_filter(dashboard_queries["summary"], current_date, filter_type, filter_value, range_start, range_end)
 
     with dwh_engine.connect() as conn:
         summary_df = pd.read_sql_query(text(query), conn)
@@ -120,8 +145,10 @@ def get_period_revenue():
     filter_type = request.args.get("filter_type")
     filter_value = request.args.get("filter_value")
 
+    current_date = datetime.datetime.now()
+
     filter_type = "year" if filter_type is None else filter_type
-    filter_value = str(datetime.datetime.now().year) if filter_value is None else filter_value
+    filter_value = str(current_date.year) if filter_value is None else filter_value
 
     range_start = range_end = None
 
@@ -129,7 +156,7 @@ def get_period_revenue():
         range_start = request.args.get("filter_value_start")
         range_end = request.args.get("filter_value_end")
 
-    query = apply_period_filter(dashboard_queries["period_revenue"], filter_type, filter_value, range_start, range_end)
+    query = apply_period_filter(dashboard_queries["period_revenue"], current_date, filter_type, filter_value, range_start, range_end)
 
     with dwh_engine.connect() as conn:
         revenue_df = pd.read_sql_query(text(query), conn)
@@ -147,10 +174,6 @@ def get_period_revenue():
             margin=dict(l=40, r=40, t=40, b=40)
         )
     except Exception as e:
-        print(filter_type)
-        print(filter_value)
-        print(query)
-        print(revenue_df.head())
         return jsonify({})
 
     del revenue_df
@@ -163,8 +186,10 @@ def get_orders_heatmap():
     filter_type = request.args.get("filter_type")
     filter_value = request.args.get("filter_value")
 
+    current_date = datetime.datetime.now()
+
     filter_type = "year" if filter_type is None else filter_type
-    filter_value = str(datetime.datetime.now().year) if filter_value is None else filter_value
+    filter_value = str(current_date.year) if filter_value is None else filter_value
 
     range_start = range_end = None
 
@@ -172,12 +197,10 @@ def get_orders_heatmap():
         range_start = request.args.get("filter_value_start")
         range_end = request.args.get("filter_value_end")
 
-    query = apply_period_filter(dashboard_queries["orders_heatmap"], filter_type, filter_value, range_start, range_end)
+    query = apply_period_filter(dashboard_queries["orders_heatmap"], current_date, filter_type, filter_value, range_start, range_end)
 
     with dwh_engine.connect() as conn:
         heatmap_data = pd.read_sql_query(text(query), conn)
-    # if heatmap_data.empty:
-    #     return jsonify({})
 
     pivot_table = heatmap_data.pivot(index="time_of_day", columns="day_of_week", values="order_count").fillna(0)
 
@@ -201,10 +224,6 @@ def get_orders_heatmap():
             #margin=dict(l=40, r=40, t=40, b=40)
         )
     except Exception as e:
-        print(filter_type)
-        print(filter_value)
-        print(query)
-        print(heatmap_data.head())
         return jsonify({})
 
     del heatmap_data, pivot_table
@@ -218,8 +237,10 @@ def get_gender_distribution():
     filter_type = request.args.get("filter_type")
     filter_value = request.args.get("filter_value")
 
+    current_date = datetime.datetime.now()
+
     filter_type = "year" if filter_type is None else filter_type
-    filter_value = str(datetime.datetime.now().year) if filter_value is None else filter_value
+    filter_value = str(current_date.year) if filter_value is None else filter_value
 
     range_start = range_end = None
 
@@ -227,20 +248,14 @@ def get_gender_distribution():
         range_start = request.args.get("filter_value_start")
         range_end = request.args.get("filter_value_end")
 
-    query = apply_period_filter(dashboard_queries["gender_distribution"], filter_type, filter_value, range_start, range_end)
+    query = apply_period_filter(dashboard_queries["gender_distribution"], current_date, filter_type, filter_value, range_start, range_end)
 
     with dwh_engine.connect() as conn:
         gender_df = pd.read_sql_query(text(query), conn)
-    # if gender_df.empty:
-    #     return jsonify({})
 
     try:
         fig = px.pie(gender_df, values='customers_count', names='gender', title='Rozdelenie podľa pohlavia')
     except Exception as e:
-        print(filter_type)
-        print(filter_value)
-        print(gender_df.head())
-        print(query)
         return jsonify({})
 
     del gender_df
@@ -254,8 +269,10 @@ def get_age_distribution():
     filter_type = request.args.get("filter_type")
     filter_value = request.args.get("filter_value")
 
+    current_date = datetime.datetime.now()
+
     filter_type = "year" if filter_type is None else filter_type
-    filter_value = str(datetime.datetime.now().year) if filter_value is None else filter_value
+    filter_value = str(current_date.year) if filter_value is None else filter_value
 
     range_start = range_end = None
 
@@ -263,30 +280,15 @@ def get_age_distribution():
         range_start = request.args.get("filter_value_start")
         range_end = request.args.get("filter_value_end")
 
-    query = apply_period_filter(dashboard_queries["age_distribution"], filter_type, filter_value, range_start, range_end)
-    # query = dashboard_queries["age_distribution"]
+    query = apply_period_filter(dashboard_queries["age_distribution"], current_date, filter_type, filter_value, range_start, range_end)
 
     with dwh_engine.connect() as conn:
         age_df = pd.read_sql_query(text(query), conn)
-    # if age_df.empty:
-    #     return jsonify({})
 
     try:
         fig = px.bar(age_df, x='age_range', y='avg_order_value', title='Priemerná suma objednávky podľa vekového rozpätia')
     except Exception as e:
-        print("age_distribution")
-        print(e)
-        print(filter_type)
-        print(filter_value)
-        print(query)
-        print (age_df.head())
         return jsonify({})
-
-    # print("age_distribution")
-    # print(filter_type)
-    # print(filter_value)
-    # print(query)
-    # print (age_df.head())
 
     del age_df
     gc.collect()
@@ -299,8 +301,10 @@ def get_gender_quartile_distribution():
     filter_type = request.args.get("filter_type")
     filter_value = request.args.get("filter_value")
 
+    current_date = datetime.datetime.now()
+
     filter_type = "year" if filter_type is None else filter_type
-    filter_value = str(datetime.datetime.now().year) if filter_value is None else filter_value
+    filter_value = str(current_date.year) if filter_value is None else filter_value
 
     range_start = range_end = None
 
@@ -308,12 +312,10 @@ def get_gender_quartile_distribution():
         range_start = request.args.get("filter_value_start")
         range_end = request.args.get("filter_value_end")
 
-    query = apply_period_filter(dashboard_queries["gender_quartile_distribution"], filter_type, filter_value, range_start, range_end)
+    query = apply_period_filter(dashboard_queries["gender_quartile_distribution"], current_date, filter_type, filter_value, range_start, range_end)
 
     with dwh_engine.connect() as conn:
         quartile_df = pd.read_sql_query(text(query), conn)
-    # if quartile_df.empty:
-    #     return jsonify({})
 
     try:
         fig = px.bar(
@@ -327,10 +329,6 @@ def get_gender_quartile_distribution():
             color_discrete_map={"Male": "teal", "Female": "coral", "Unknown": "gray"}
         )
     except Exception as e:
-        print(filter_type)
-        print(filter_value)
-        print(query)
-        print (quartile_df.head())
         return jsonify({})
 
     fig.update_layout(
@@ -350,8 +348,10 @@ def get_order_status_heatmap():
     filter_type = request.args.get("filter_type")
     filter_value = request.args.get("filter_value")
 
+    current_date = datetime.datetime.now()
+
     filter_type = "year" if filter_type is None else filter_type
-    filter_value = str(datetime.datetime.now().year) if filter_value is None else filter_value
+    filter_value = str(current_date.year) if filter_value is None else filter_value
 
     range_start = range_end = None
 
@@ -359,7 +359,7 @@ def get_order_status_heatmap():
         range_start = request.args.get("filter_value_start")
         range_end = request.args.get("filter_value_end")
 
-    query = apply_period_filter(dashboard_queries["order_status_heatmap"], filter_type, filter_value, range_start, range_end)
+    query = apply_period_filter(dashboard_queries["order_status_heatmap"], current_date, filter_type, filter_value, range_start, range_end)
 
     with dwh_engine.connect() as conn:
         heatmap_df = pd.read_sql_query(text(query), conn)
@@ -372,10 +372,6 @@ def get_order_status_heatmap():
             title="Teplotná mapa stavu objednávok"
         )
     except Exception as e:
-        print(filter_type)
-        print(filter_value)
-        print(query)
-        print (heatmap_df.head())
         return jsonify({})
 
     del heatmap_df, heatmap_pivot
