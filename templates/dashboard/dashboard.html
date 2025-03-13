@@ -6,7 +6,7 @@
         <div class="row my-4">
             <div class="col-md-3 d-flex align-items-end">
                 <div class="w-100">
-                    <label for="month-filter" class="form-label">Month</label>
+                    <label for="month-filter" class="form-label">Mesiac</label>
                     <select class="form-select" id="month-filter">
                         {% for month in months %}
                             <option value="{{ month.year }}-{{ month.month }}">{{ month.month_name }}-{{ month.year }}</option>
@@ -22,7 +22,7 @@
             </div>
             <div class="col-md-3 d-flex align-items-end">
                 <div class="w-100">
-                    <label for="quarter-filter" class="form-label">Quarter</label>
+                    <label for="quarter-filter" class="form-label">Štvrťrok</label>
                     <select class="form-select" id="quarter-filter">
                         {% for quarter in quarters %}
                             <option value="{{ quarter.year }}-{{ quarter.quarter }}">Q{{ quarter.quarter }}-{{ quarter.year }}</option>
@@ -38,7 +38,7 @@
             </div>
             <div class="col-md-3 d-flex align-items-end">
                 <div class="w-100">
-                    <label for="year-filter" class="form-label">Year</label>
+                    <label for="year-filter" class="form-label">Rok</label>
                     <select class="form-select" id="year-filter">
                         {% for year in years %}
                             <option value="{{ year.year }}">{{ year.year }}</option>
@@ -54,7 +54,7 @@
             </div>
             <div class="col-md-3 d-flex align-items-end">
                 <div class="w-100">
-                    <label for="date-range-filter" class="form-label">Date range</label>
+                    <label for="date-range-filter" class="form-label">Rozsah dátumov</label>
                     <input type="date" class="form-control" id="start-date-filter">
                     <input type="date" class="form-control mt-2" id="end-date-filter">
                 </div>
@@ -72,22 +72,22 @@
             <div class="row my-4">
                 <div class="col-md-3">
                     <div class="card text-center">
-                        <div class="card-body align-content-center" id="carts-count">{#Loading...#}</div>
+                        <div class="card-body align-content-center" id="carts-count"></div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card text-center">
-                        <div class="card-body align-content-center" id="orders-count">{#Loading...#}</div>
+                        <div class="card-body align-content-center" id="orders-count"></div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card text-center">
-                        <div class="card-body align-content-center" id="total-revenue">{#Loading...#}</div>
+                        <div class="card-body align-content-center" id="total-revenue"></div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card text-center">
-                        <div class="card-body align-content-center" id="conversion-rate">{#Loading...#}</div>
+                        <div class="card-body align-content-center" id="conversion-rate"></div>
                     </div>
                 </div>
             </div>
@@ -95,43 +95,37 @@
             <div class="row my-4">
                 <div class="col-md-6">
                     <div class="card">
-                        <div class="card-body card-with-diagram-body align-content-center" id="period-revenue-chart">
-                            {#Loading...#}</div>
+                        <div class="card-body card-with-diagram-body align-content-center" id="period-revenue-chart"></div>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="card">
-                        <div class="card-body card-with-diagram-body align-content-center" id="orders-heatmap-chart">
-                            {#Loading...#}</div>
-                    </div>
-                </div>
-            </div>
-            <div class="row my-4">
-                <div class="col-md-6">
-                    <div class="card">
-                        <div class="card-body card-with-diagram-body align-content-center"
-                             id="gender-distribution-chart">{#Loading...#}</div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="card">
-                        <div class="card-body card-with-diagram-body align-content-center" id="age-distribution-chart">
-                            {#Loading...#}</div>
+                        <div class="card-body card-with-diagram-body align-content-center" id="orders-heatmap-chart"></div>
                     </div>
                 </div>
             </div>
             <div class="row my-4">
                 <div class="col-md-6">
                     <div class="card">
-                        <div class="card-body card-with-diagram-body align-content-center"
-                             id="gender-quartile-distribution-chart">{#Loading...#}</div>
+                        <div class="card-body card-with-diagram-body align-content-center" id="gender-distribution-chart"></div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body card-with-diagram-body align-content-center" id="age-distribution-chart"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="row my-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body card-with-diagram-body align-content-center" id="gender-quartile-distribution-chart"></div>
                     </div>
                 </div>
 
                 <div class="col-md-6">
                     <div class="card">
-                        <div class="card-body card-with-diagram-body align-content-center" id="order-status-heatmap">
-                            {#Loading...#}</div>
+                        <div class="card-body card-with-diagram-body align-content-center" id="order-status-heatmap"></div>
                     </div>
                 </div>
             </div>

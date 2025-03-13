@@ -1,11 +1,11 @@
 {% extends "user/layout.html" %}
 {% block content %}
     <div class="container-fluid">
-        <h1>Reports</h1>
+        <h1>Reporty</h1>
         <div class="row my-4">
             <div class="col-md-3 d-flex align-items-end">
                 <div class="w-100">
-                    <label for="month-filter" class="form-label">Month</label>
+                    <label for="month-filter" class="form-label">Mesiac</label>
                     <select class="form-select" id="month-filter">
                         {% for month in months %}
                             <option value="{{ month.year }}-{{ month.month }}">{{ month.month_name }}-{{ month.year }}</option>
@@ -21,7 +21,7 @@
             </div>
             <div class="col-md-3 d-flex align-items-end">
                 <div class="w-100">
-                    <label for="quarter-filter" class="form-label">Quarter</label>
+                    <label for="quarter-filter" class="form-label">Štvrťrok</label>
                     <select class="form-select" id="quarter-filter">
                         {% for quarter in quarters %}
                             <option value="{{ quarter.year }}-{{ quarter.quarter }}">Q{{ quarter.quarter }}-{{ quarter.year }}</option>
@@ -37,7 +37,7 @@
             </div>
             <div class="col-md-3 d-flex align-items-end">
                 <div class="w-100">
-                    <label for="year-filter" class="form-label">Year</label>
+                    <label for="year-filter" class="form-label">Rok</label>
                     <select class="form-select" id="year-filter">
                         {% for year in years %}
                             <option value="{{ year.year }}">{{ year.year }}</option>
@@ -53,7 +53,7 @@
             </div>
             <div class="col-md-3 d-flex align-items-end">
                 <div class="w-100">
-                    <label for="date-range-filter" class="form-label">Date range</label>
+                    <label for="date-range-filter" class="form-label">Rozsah dátumov</label>
                     <input type="date" class="form-control" id="start-date-filter">
                     <input type="date" class="form-control mt-2" id="end-date-filter">
                 </div>
@@ -68,7 +68,7 @@
         <div class="row my-4">
             <div class="col-md-3 d-flex align-items-end">
                 <div class="w-100">
-                    <label for="category-filter" class="form-label">Report type</label>
+                    <label for="category-filter" class="form-label">Typ reportu</label>
                     <select class="form-select" id="report-type-filter">
                         {% for key, value in report_types.items() %}
                             <option value="{{ key }}"{% if value.subfilters %} data-subfilters="{{ value.subfilters.keys()|join(',') }}"{% endif %}>{{ value.title }}</option>
@@ -92,9 +92,8 @@
         </div>
         <div class="row my-4">
             <div class="col-md-3 d-flex align-items-end">
-                {# Create button #}
                 <button class="btn btn-primary" id="create-report-btn">
-                    <i class="bi bi-file-earmark-plus"></i> Create report
+                    <i class="bi bi-file-earmark-plus"></i> Vytvoriť report
                 </button>
             </div>
         </div>

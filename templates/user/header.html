@@ -40,24 +40,24 @@
                 <div class="collapse navbar-collapse d-none d-lg-block">
                     <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
                         <li class="nav-item">
-                            <a class="nav-link active" aria-current="page" href="{{ url_for('dashboard.dashboard_index') }}">Dashboard</a>
+                            <a class="nav-link active" aria-current="page" href="{{ url_for('dashboard.dashboard_index') }}">Informačný panel</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('reports.reports_index') }}">Reports</a>
+                            <a class="nav-link" href="{{ url_for('reports.reports_index') }}">Reporty</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('auth.auth_profile') }}">Profile</a>
+                            <a class="nav-link" href="{{ url_for('auth.auth_profile') }}">Profil</a>
                         </li>
                         {% if current_user.is_admin %}
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('admin.etl_control') }}">ETL</a>
+                            <a class="nav-link" href="{{ url_for('admin.etl_control') }}">Prenos dát</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('admin.users') }}">Users</a>
+                            <a class="nav-link" href="{{ url_for('admin.users') }}">Používatelia</a>
                         </li>
                         {% endif %}
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('auth.auth_logout') }}">Logout</a>
+                            <a class="nav-link" href="{{ url_for('auth.auth_logout') }}">Odhlásiť sa</a>
                         </li>
                     </ul>
                 </div>

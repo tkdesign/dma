@@ -1,7 +1,7 @@
 {% extends "user/layout.html" %}
 {% block content %}
     <div class="container-fluid">
-        <h1>User profile</h1>
+        <h1>Profil používateľa</h1>
         <div class="row" id="edit-profile-container">
             <form action="{{ url_for('admin.user_update', user_id=user_id) }}" method="post" novalidate id="edit-profile-form">
                 {{ form.hidden_tag() }}

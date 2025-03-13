@@ -4,9 +4,45 @@ import hashlib
 from datetime import date, datetime
 import gc
 
+
+def create_date_frame(start, end):
+    dates_range = pd.date_range(start=start, end=end, freq='D')
+
+    df = pd.DataFrame({'date': dates_range})
+
+    df['year'] = df['date'].dt.year
+    df['quarter'] = df['date'].dt.quarter
+    df['month'] = df['date'].dt.month
+    df['month_name'] = df['date'].dt.strftime('%B')
+    df['day'] = df['date'].dt.day
+    df['day_of_week'] = df['date'].dt.dayofweek + 1
+    df['day_name'] = df['date'].dt.strftime('%A')
+    df['week_of_year'] = df['date'].dt.isocalendar().week
+    df['is_weekend'] = df['day_of_week'].isin([6, 7])
+
+    return df
+
 def load_dim_date(self, stage_engine, dwh_engine):
     if self is not None and self.is_aborted():
-        print("Task aborted.")
+        print("Úloha zrušená")
+        return
+
+    print('Start processing...')
+
+    start = '2000-01-01'
+    end = '2030-12-31'
+
+    df_date = create_date_frame(start, end)
+
+    with dwh_engine.connect() as conn:
+        conn.execute('TRUNCATE TABLE public.dim_date CASCADE;')
+        df_date.to_sql('dim_date', conn, if_exists='append', index=False)
+
+    print('Processing completed.')
+
+def load_dim_date2(self, stage_engine, dwh_engine):
+    if self is not None and self.is_aborted():
+        print("Úloha zrušená")
         return
 
     dwh_query = """
@@ -57,9 +93,39 @@ def load_dim_date(self, stage_engine, dwh_engine):
     print('Processing completed.')
     return
 
+
+def create_time_frame():
+    start_time = '2000-01-01 00:00:00'
+    end_time = '2000-01-01 23:00:00'
+    times = pd.date_range(start=start_time, end=end_time, freq='H')
+
+    df = pd.DataFrame({
+        'time': times,
+        'hour': times.hour
+    })
+
+    df['time'] = df['time'].dt.time
+
+    return df
+
 def load_dim_time(self, stage_engine, dwh_engine):
     if self is not None and self.is_aborted():
-        print("Task aborted.")
+        print("Úloha zrušená")
+        return
+
+    print('Start processing...')
+
+    df_time = create_time_frame()
+
+    with dwh_engine.connect() as conn:
+        conn.execute('TRUNCATE TABLE public.dim_time CASCADE;')
+        df_time.to_sql('dim_time', conn, if_exists='append', index=False)
+
+    print('Processing completed.')
+
+def load_dim_time2(self, stage_engine, dwh_engine):
+    if self is not None and self.is_aborted():
+        print("Úloha zrušená")
         return
 
     dwh_query = """
@@ -94,7 +160,7 @@ def calc_hash_dim_address(row):
 
 def load_dim_address(self, stage_engine, dwh_engine):
     if self is not None and self.is_aborted():
-        print("Task aborted.")
+        print("Úloha zrušená")
         return
 
     stage_query = """
@@ -111,7 +177,8 @@ def load_dim_address(self, stage_engine, dwh_engine):
         LEFT JOIN sg_country c ON c.id_country = a.id_country
         LEFT JOIN sg_state s ON s.id_state = a.id_state
     ORDER BY
-        a.id_address;
+        a.id_address
+    LIMIT {chunksize} OFFSET {offset};
     """
 
     print('Start processing...')
@@ -120,11 +187,19 @@ def load_dim_address(self, stage_engine, dwh_engine):
     valid_to = today - pd.DateOffset(days=1)
     min_date = datetime(2000, 1, 1)
     chunksize = 10000
+    offset = 0
 
-    for chunk in pd.read_sql_query(stage_query, stage_engine, chunksize=chunksize):
+    while True:
+        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+
         if self is not None and self.is_aborted():
-            print("Task aborted.")
+            print("Úloha zrušená")
             return
+
+        if chunk.empty:
+            break
+
+        offset += chunksize
 
         print('Processing chunk...')
 
@@ -138,7 +213,7 @@ def load_dim_address(self, stage_engine, dwh_engine):
         df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys": tuple(business_keys)})
 
         if self is not None and self.is_aborted():
-            print("Task aborted.")
+            print("Úloha zrušená")
             return
 
         if not df_dim.empty:
@@ -176,7 +251,7 @@ def load_dim_address(self, stage_engine, dwh_engine):
                 })
 
             if self is not None and self.is_aborted():
-                print("Task aborted.")
+                print("Úloha zrušená")
                 return
 
         for idx, row in changed_records.iterrows():
@@ -192,7 +267,7 @@ def load_dim_address(self, stage_engine, dwh_engine):
                 })
 
             if self is not None and self.is_aborted():
-                print("Task aborted.")
+                print("Úloha zrušená")
                 return
 
             insert_sql = text("""
@@ -212,7 +287,7 @@ def load_dim_address(self, stage_engine, dwh_engine):
                 })
 
             if self is not None and self.is_aborted():
-                print("Task aborted.")
+                print("Úloha zrušená")
                 return
 
         del new_records
@@ -231,35 +306,44 @@ def calc_hash_dim_customer(row):
 
 def load_dim_customer(self, stage_engine, dwh_engine):
     if self is not None and self.is_aborted():
-        print("Task aborted.")
+        print("Úloha zrušená")
         return
     stage_query = """
-SELECT
-	c.id_customer AS customerid_bk,
-	c.hashed_login AS hashedemail,
-	(SELECT gr.name FROM sg_customer_group cg JOIN sg_group gr ON gr.id_group = cg.id_group WHERE cg.id_group = c.id_default_group ORDER BY gr.id_group DESC LIMIT 1) AS defaultgroup,
-	c.birthday,
-	(SELECT gen.name FROM sg_gender AS gen WHERE gen.id_gender = c.id_gender ORDER BY gen.id_gender DESC LIMIT 1) AS gender,
-	((SELECT cc.id_customer FROM sg_customer_company cc WHERE cc.id_customer = c.id_customer ORDER BY cc.id_customer DESC LIMIT 1) IS NOT NULL) AS businessaccount,
-	c.active AS active,
-	c.date_add AS valid_from
-FROM
-	sg_customer AS c
-ORDER BY
-	c.id_customer;
+    SELECT
+        c.id_customer AS customerid_bk,
+        c.hashed_login AS hashedemail,
+        (SELECT gr.name FROM sg_customer_group cg JOIN sg_group gr ON gr.id_group = cg.id_group WHERE cg.id_group = c.id_default_group ORDER BY gr.id_group DESC LIMIT 1) AS defaultgroup,
+        c.birthday,
+        (SELECT gen.name FROM sg_gender AS gen WHERE gen.id_gender = c.id_gender ORDER BY gen.id_gender DESC LIMIT 1) AS gender,
+        ((SELECT cc.id_customer FROM sg_customer_company cc WHERE cc.id_customer = c.id_customer ORDER BY cc.id_customer DESC LIMIT 1) IS NOT NULL) AS businessaccount,
+        c.active AS active,
+        c.date_add AS valid_from
+    FROM
+        sg_customer AS c
+    ORDER BY
+        c.id_customer
+    LIMIT {chunksize} OFFSET {offset};
     """
 
     print('Start processing...')
 
-    chunksize = 10000
     today = date.today()
     valid_to = today - pd.DateOffset(days=1)
     min_date = datetime(2000, 1, 1)
+    chunksize = 10000
+    offset = 0
 
-    for chunk in pd.read_sql_query(stage_query, stage_engine, chunksize=chunksize):
+    while True:
+        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+
         if self is not None and self.is_aborted():
-            print("Task aborted.")
+            print("Úloha zrušená")
             return
+
+        if chunk.empty:
+            break
+
+        offset += chunksize
 
         print('Processing chunk...')
 
@@ -272,7 +356,7 @@ ORDER BY
         df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys": tuple(business_keys)})
 
         if self is not None and self.is_aborted():
-            print("Task aborted.")
+            print("Úloha zrušená")
             return
 
         if not df_dim.empty:
@@ -312,7 +396,7 @@ ORDER BY
                 })
 
             if self is not None and self.is_aborted():
-                print("Task aborted.")
+                print("Úloha zrušená")
                 return
 
         for idx, row in changed_records.iterrows():
@@ -328,7 +412,7 @@ ORDER BY
                 })
 
             if self is not None and self.is_aborted():
-                print("Task aborted.")
+                print("Úloha zrušená")
                 return
 
             insert_sql = text("""
@@ -349,7 +433,7 @@ ORDER BY
                 })
 
             if self is not None and self.is_aborted():
-                print("Task aborted.")
+                print("Úloha zrušená")
                 return
 
         del new_records
@@ -368,7 +452,7 @@ def calc_hash_dim_attribute(row):
 
 def load_dim_attribute(self, stage_engine, dwh_engine):
     if self is not None and self.is_aborted():
-        print("Task aborted.")
+        print("Úloha zrušená")
         return
 
     stage_query = """
@@ -381,17 +465,26 @@ def load_dim_attribute(self, stage_engine, dwh_engine):
     LEFT JOIN
         sg_attribute_group ag ON a.id_attribute_group = ag.id_attribute_group
     ORDER BY
-        a.id_attribute;
+        a.id_attribute
+    LIMIT {chunksize} OFFSET {offset};
     """
 
     print('Start processing...')
 
     chunksize = 10000
+    offset = 0
 
-    for chunk in pd.read_sql_query(stage_query, stage_engine, chunksize=chunksize):
+    while True:
+        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+
         if self is not None and self.is_aborted():
-            print("Task aborted.")
+            print("Úloha zrušená")
             return
+
+        if chunk.empty:
+            break
+
+        offset += chunksize
 
         print('Processing chunk...')
 
@@ -405,7 +498,7 @@ def load_dim_attribute(self, stage_engine, dwh_engine):
         df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys": tuple(business_keys)})
 
         if self is not None and self.is_aborted():
-            print("Task aborted.")
+            print("Úloha zrušená")
             return
 
         if not df_dim.empty:
@@ -435,7 +528,7 @@ def load_dim_attribute(self, stage_engine, dwh_engine):
                 })
 
             if self is not None and self.is_aborted():
-                print("Task aborted.")
+                print("Úloha zrušená")
                 return
 
         for idx, row in changed_records.iterrows():
@@ -452,7 +545,7 @@ def load_dim_attribute(self, stage_engine, dwh_engine):
                 })
 
             if self is not None and self.is_aborted():
-                print("Task aborted.")
+                print("Úloha zrušená")
                 return
 
         del new_records
@@ -471,7 +564,7 @@ def calc_hash_dim_product(row):
 
 def load_dim_product(self, stage_engine, dwh_engine):
     if self is not None and self.is_aborted():
-        print("Task aborted.")
+        print("Úloha zrušená")
         return
 
     stage_query = """
@@ -494,19 +587,29 @@ def load_dim_product(self, stage_engine, dwh_engine):
     LEFT JOIN
         sg_category c ON p.id_category_default = c.id_category
     ORDER BY
-        p.id_product;
+        p.id_product
+    LIMIT {chunksize} OFFSET {offset};
     """
 
     print('Start processing...')
+
     today = date.today()
     valid_to = today - pd.DateOffset(days=1)
     min_date = datetime(2000, 1, 1)
     chunksize = 10000
+    offset = 0
 
-    for chunk in pd.read_sql_query(stage_query, stage_engine, chunksize=chunksize):
+    while True:
+        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+
         if self is not None and self.is_aborted():
-            print("Task aborted.")
+            print("Úloha zrušená")
             return
+
+        if chunk.empty:
+            break
+
+        offset += chunksize
 
         print('Processing chunk...')
 
@@ -529,7 +632,7 @@ def load_dim_product(self, stage_engine, dwh_engine):
         df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys_pairs": keys_pairs})
 
         if self is not None and self.is_aborted():
-            print("Task aborted.")
+            print("Úloha zrušená")
             return
 
         if not df_dim.empty:
@@ -575,7 +678,7 @@ def load_dim_product(self, stage_engine, dwh_engine):
                 })
 
             if self is not None and self.is_aborted():
-                print("Task aborted.")
+                print("Úloha zrušená")
                 return
 
         for idx, row in changed_records.iterrows():
@@ -591,7 +694,7 @@ def load_dim_product(self, stage_engine, dwh_engine):
                 })
 
             if self is not None and self.is_aborted():
-                print("Task aborted.")
+                print("Úloha zrušená")
                 return
 
             insert_sql = text("""
@@ -615,7 +718,7 @@ def load_dim_product(self, stage_engine, dwh_engine):
                 })
 
             if self is not None and self.is_aborted():
-                print("Task aborted.")
+                print("Úloha zrušená")
                 return
 
         del new_records
@@ -630,7 +733,7 @@ def load_dim_product(self, stage_engine, dwh_engine):
 
 def load_bridge_product_attribute(self, stage_engine, dwh_engine):
     if self is not None and self.is_aborted():
-        print("Task aborted.")
+        print("Úloha zrušená")
         return
 
     query = """
@@ -651,15 +754,25 @@ def load_bridge_product_attribute(self, stage_engine, dwh_engine):
         dma_stage.public.bridge_product_attribute_fdw bpa ON dp.product_key = bpa.product_sk AND da.attribute_key = bpa.attribute_sk
     WHERE bpa.product_sk IS NULL
     ORDER BY pac.id_product_attribute
+    LIMIT {chunksize} OFFSET {offset};
     """
 
     print('Start processing...')
 
     chunksize = 10000
-    for chunk in pd.read_sql_query(query, stage_engine, chunksize=chunksize):
+    offset = 0
+
+    while True:
+        chunk = pd.read_sql_query(text(query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+
         if self is not None and self.is_aborted():
-            print("Task aborted.")
+            print("Úloha zrušená")
             return
+
+        if chunk.empty:
+            break
+
+        offset += chunksize
 
         print('Processing chunk...')
 
@@ -680,7 +793,7 @@ def load_bridge_product_attribute(self, stage_engine, dwh_engine):
                 })
 
                 if self is not None and self.is_aborted():
-                    print("Task aborted.")
+                    print("Úloha zrušená")
                     return
 
         del chunk
@@ -695,7 +808,7 @@ def calc_hash_load_dim_order_state(row):
 
 def load_dim_order_state(self, stage_engine, dwh_engine):
     if self is not None and self.is_aborted():
-        print("Task aborted.")
+        print("Úloha zrušená")
         return
 
     stage_query = """
@@ -705,7 +818,8 @@ def load_dim_order_state(self, stage_engine, dwh_engine):
     FROM
         sg_order_state os
     ORDER BY
-        os.id_order_state;
+        os.id_order_state
+    LIMIT {chunksize} OFFSET {offset};
     """
 
     print('Start processing...')
@@ -714,11 +828,19 @@ def load_dim_order_state(self, stage_engine, dwh_engine):
     valid_to = today - pd.DateOffset(days=1)
     min_date = datetime(2000, 1, 1)
     chunksize = 10000
+    offset = 0
 
-    for chunk in pd.read_sql_query(stage_query, stage_engine, chunksize=chunksize):
+    while True:
+        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+
         if self is not None and self.is_aborted():
-            print("Task aborted.")
+            print("Úloha zrušená")
             return
+
+        if chunk.empty:
+            break
+
+        offset += chunksize
 
         print('Processing chunk...')
 
@@ -729,7 +851,7 @@ def load_dim_order_state(self, stage_engine, dwh_engine):
         df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys": tuple(business_keys)})
 
         if self is not None and self.is_aborted():
-            print("Task aborted.")
+            print("Úloha zrušená")
             return
 
         if not df_dim.empty:
@@ -755,7 +877,7 @@ def load_dim_order_state(self, stage_engine, dwh_engine):
                 })
 
             if self is not None and self.is_aborted():
-                print("Task aborted.")
+                print("Úloha zrušená")
                 return
 
         for idx, row in changed_records.iterrows():
@@ -771,7 +893,7 @@ def load_dim_order_state(self, stage_engine, dwh_engine):
                 })
 
             if self is not None and self.is_aborted():
-                print("Task aborted.")
+                print("Úloha zrušená")
                 return
 
             insert_sql = text("""
@@ -786,7 +908,7 @@ def load_dim_order_state(self, stage_engine, dwh_engine):
                 })
 
             if self is not None and self.is_aborted():
-                print("Task aborted.")
+                print("Úloha zrušená")
                 return
 
         del merged
@@ -801,7 +923,7 @@ def load_dim_order_state(self, stage_engine, dwh_engine):
 
 def load_fact_cart_line(self, stage_engine, dwh_engine):
     if self is not None and self.is_aborted():
-        print("Task aborted.")
+        print("Úloha zrušená")
         return
 
     stage_query = """
@@ -818,17 +940,26 @@ def load_fact_cart_line(self, stage_engine, dwh_engine):
     LEFT JOIN dma_stage.public.dim_customer_fdw dc ON sgc.id_customer = dc.customerid_bk
     LEFT JOIN dma_stage.public.fact_cart_line_fdw fcl ON fcl.cartid_bk = sgc.id_cart AND fcl.product_sk = dp.product_key
 	WHERE fcl.cartline_key IS NULL
-    ORDER BY sgcp.date_add;
+    ORDER BY sgcp.date_add
+    LIMIT {chunksize} OFFSET {offset};
     """
 
     print('Start processing...')
 
     chunksize = 10000
+    offset = 0
 
-    for chunk in pd.read_sql_query(stage_query, stage_engine, chunksize=chunksize):
+    while True:
+        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+
         if self is not None and self.is_aborted():
-            print("Task aborted.")
+            print("Úloha zrušená")
             return
+
+        if chunk.empty:
+            break
+
+        offset += chunksize
 
         print('Processing chunk...')
 
@@ -842,7 +973,7 @@ def load_fact_cart_line(self, stage_engine, dwh_engine):
         df_date = pd.read_sql_query(query_date, dwh_engine, params={"keys": tuple(date_add_list)})
 
         if self is not None and self.is_aborted():
-            print("Task aborted.")
+            print("Úloha zrušená")
             return
 
         time_add_list = chunk['sgc_date_add'].dt.floor('h').dt.time.tolist()
@@ -851,7 +982,7 @@ def load_fact_cart_line(self, stage_engine, dwh_engine):
         df_time = pd.read_sql_query(query_time, dwh_engine, params={"keys": tuple(time_add_list)})
 
         if self is not None and self.is_aborted():
-            print("Task aborted.")
+            print("Úloha zrušená")
             return
 
         chunk['sg_date'] = chunk['sgc_date_add'].dt.date
@@ -881,7 +1012,7 @@ def load_fact_cart_line(self, stage_engine, dwh_engine):
                 })
 
             if self is not None and self.is_aborted():
-                print("Task aborted.")
+                print("Úloha zrušená")
                 return
 
         del df_date
@@ -895,48 +1026,57 @@ def load_fact_cart_line(self, stage_engine, dwh_engine):
 
 def load_fact_order_line(self, stage_engine, dwh_engine):
     if self is not None and self.is_aborted():
-        print("Task aborted.")
+        print("Úloha zrušená")
         return
 
     stage_query = """
-SELECT
-		sgod.id_order AS sgod_id_order,
-		sgod.id_order_detail AS sgod_id_order_detail,
-		sgo.id_cart AS sgo_id_cart,
-		dp.product_key AS dp_product_key,
-		dc.customer_key AS dc_customer_key,
-		dadr.address_key AS dadr_address_key,
-		sgo.date_add AS sgo_date_add,
-		sgod.product_quantity AS sgod_product_quantity,
-		sgod.unit_price_tax_excl AS sgod_unit_price_tax_excl,
-		sgod.unit_price_tax_incl AS sgod_unit_price_tax_incl,
-		sgod.total_price_tax_excl AS sgod_total_price_tax_excl,
-		sgod.total_price_tax_incl AS sgod_total_price_tax_incl,
-		sgo.total_paid_tax_excl AS sgo_total_paid_tax_excl,
-		sgo.total_paid_tax_incl AS sgo_total_paid_tax_incl,
-		sgod.tax_rate AS sgod_tax_rate,
-		sgo.conversion_rate AS sgo_conversion_rate,
-		sgo.carrier AS sgo_carrier,
-		sgo.payment AS sgo_payment,
-		fol.orderline_key AS fol_orderline_key
-FROM dma_stage.dma_db_stage.sg_order_detail sgod 
-JOIN dma_stage.dma_db_stage.sg_orders sgo ON sgo.id_order = sgod.id_order
-LEFT JOIN dma_stage.public.dim_product_fdw dp ON sgod.product_id = dp.productid_bk AND sgod.product_attribute_id = dp.productattributeid_bk
-LEFT JOIN dma_stage.public.dim_customer_fdw dc ON sgo.id_customer = dc.customerid_bk
-LEFT JOIN dma_stage.public.dim_address_fdw dadr ON dadr.addressid_bk = sgo.id_address_delivery
-LEFT JOIN dma_stage.public.fact_order_line_fdw fol ON fol.cartid_bk = sgo.id_order AND fol.product_sk = dp.product_key
-WHERE fol.orderline_key IS NULL
-ORDER BY sgo.date_add;
+    SELECT
+        sgod.id_order AS sgod_id_order,
+        sgod.id_order_detail AS sgod_id_order_detail,
+        sgo.id_cart AS sgo_id_cart,
+        dp.product_key AS dp_product_key,
+        dc.customer_key AS dc_customer_key,
+        dadr.address_key AS dadr_address_key,
+        sgo.date_add AS sgo_date_add,
+        sgod.product_quantity AS sgod_product_quantity,
+        sgod.unit_price_tax_excl AS sgod_unit_price_tax_excl,
+        sgod.unit_price_tax_incl AS sgod_unit_price_tax_incl,
+        sgod.total_price_tax_excl AS sgod_total_price_tax_excl,
+        sgod.total_price_tax_incl AS sgod_total_price_tax_incl,
+        sgo.total_paid_tax_excl AS sgo_total_paid_tax_excl,
+        sgo.total_paid_tax_incl AS sgo_total_paid_tax_incl,
+        sgod.tax_rate AS sgod_tax_rate,
+        sgo.conversion_rate AS sgo_conversion_rate,
+        sgo.carrier AS sgo_carrier,
+        sgo.payment AS sgo_payment,
+        fol.orderline_key AS fol_orderline_key
+    FROM dma_stage.dma_db_stage.sg_order_detail sgod 
+    JOIN dma_stage.dma_db_stage.sg_orders sgo ON sgo.id_order = sgod.id_order
+    LEFT JOIN dma_stage.public.dim_product_fdw dp ON sgod.product_id = dp.productid_bk AND sgod.product_attribute_id = dp.productattributeid_bk
+    LEFT JOIN dma_stage.public.dim_customer_fdw dc ON sgo.id_customer = dc.customerid_bk
+    LEFT JOIN dma_stage.public.dim_address_fdw dadr ON dadr.addressid_bk = sgo.id_address_delivery
+    LEFT JOIN dma_stage.public.fact_order_line_fdw fol ON fol.cartid_bk = sgo.id_order AND fol.product_sk = dp.product_key
+    WHERE fol.orderline_key IS NULL
+    ORDER BY sgo.date_add
+    LIMIT {chunksize} OFFSET {offset};
     """
 
     print('Start processing...')
 
     chunksize = 10000
+    offset = 0
 
-    for chunk in pd.read_sql_query(stage_query, stage_engine, chunksize=chunksize):
+    while True:
+        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+
         if self is not None and self.is_aborted():
-            print("Task aborted.")
+            print("Úloha zrušená")
             return
+
+        if chunk.empty:
+            break
+
+        offset += chunksize
 
         print('Processing chunk...')
 
@@ -952,7 +1092,7 @@ ORDER BY sgo.date_add;
         df_date = pd.read_sql_query(query_date, dwh_engine, params={"keys": tuple(date_add_list)})
 
         if self is not None and self.is_aborted():
-            print("Task aborted.")
+            print("Úloha zrušená")
             return
 
         time_add_list = chunk['sgo_date_add'].dt.floor('h').dt.time.tolist()
@@ -961,7 +1101,7 @@ ORDER BY sgo.date_add;
         df_time = pd.read_sql_query(query_time, dwh_engine, params={"keys": tuple(time_add_list)})
 
         if self is not None and self.is_aborted():
-            print("Task aborted.")
+            print("Úloha zrušená")
             return
 
         chunk['sg_date'] = chunk['sgo_date_add'].dt.date
@@ -1004,7 +1144,7 @@ ORDER BY sgo.date_add;
                 })
 
             if self is not None and self.is_aborted():
-                print("Task aborted.")
+                print("Úloha zrušená")
                 return
 
         del df_date
@@ -1018,32 +1158,41 @@ ORDER BY sgo.date_add;
 
 def load_fact_order_history(self, stage_engine, dwh_engine):
     if self is not None and self.is_aborted():
-        print("Task aborted.")
+        print("Úloha zrušená")
         return
 
     stage_query = """
-SELECT
-		sgoh.id_order_history AS sgoh_id_order_history,
-		dos.orderstate_key AS dos_orderstate_key,
-		sgoh.id_order AS sgoh_id_order,
-		sgoh.id_order_state AS sgoh_id_order_state,
-		sgoh.date_add AS sgoh_date_add,
-		foh.orderhistory_key AS foh_orderhistory_key
-FROM dma_stage.dma_db_stage.sg_order_history sgoh 
-LEFT JOIN dma_stage.public.dim_order_state_fdw dos ON dos.orderstateid_bk = sgoh.id_order_state
-LEFT JOIN dma_stage.public.fact_order_history_fdw foh ON foh.orderhistoryid_bk = sgoh.id_order_history
-WHERE foh.orderhistory_key IS NULL
-ORDER BY sgoh.id_order_history;
+    SELECT
+        sgoh.id_order_history AS sgoh_id_order_history,
+        dos.orderstate_key AS dos_orderstate_key,
+        sgoh.id_order AS sgoh_id_order,
+        sgoh.id_order_state AS sgoh_id_order_state,
+        sgoh.date_add AS sgoh_date_add,
+        foh.orderhistory_key AS foh_orderhistory_key
+    FROM dma_stage.dma_db_stage.sg_order_history sgoh 
+    LEFT JOIN dma_stage.public.dim_order_state_fdw dos ON dos.orderstateid_bk = sgoh.id_order_state
+    LEFT JOIN dma_stage.public.fact_order_history_fdw foh ON foh.orderhistoryid_bk = sgoh.id_order_history
+    WHERE foh.orderhistory_key IS NULL
+    ORDER BY sgoh.id_order_history
+    LIMIT {chunksize} OFFSET {offset};
     """
 
     print('Start processing...')
 
     chunksize = 10000
+    offset = 0
 
-    for chunk in pd.read_sql_query(stage_query, stage_engine, chunksize=chunksize):
+    while True:
+        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+
         if self is not None and self.is_aborted():
-            print("Task aborted.")
+            print("Úloha zrušená")
             return
+
+        if chunk.empty:
+            break
+
+        offset += chunksize
 
         print('Processing chunk...')
 
@@ -1054,7 +1203,7 @@ ORDER BY sgoh.id_order_history;
         df_date = pd.read_sql_query(query_date, dwh_engine, params={"keys": tuple(date_add_list)})
 
         if self is not None and self.is_aborted():
-            print("Task aborted.")
+            print("Úloha zrušená")
             return
 
         time_add_list = chunk['sgoh_date_add'].dt.floor('h').dt.time.tolist()
@@ -1063,7 +1212,7 @@ ORDER BY sgoh.id_order_history;
         df_time = pd.read_sql_query(query_time, dwh_engine, params={"keys": tuple(time_add_list)})
 
         if self is not None and self.is_aborted():
-            print("Task aborted.")
+            print("Úloha zrušená")
             return
 
         chunk['sg_date'] = chunk['sgoh_date_add'].dt.date
@@ -1093,7 +1242,7 @@ ORDER BY sgoh.id_order_history;
                 })
 
             if self is not None and self.is_aborted():
-                print("Task aborted.")
+                print("Úloha zrušená")
                 return
 
         del df_date

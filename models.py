@@ -20,7 +20,7 @@ class User(UserMixin, db.Model):
     updated_at = db.Column(db.DateTime, server_default=db.func.now(), server_onupdate=db.func.now())
 
     def __repr__(self):
-        return '<User {}>'.format(self.username)
+        return '<Používateľ {}>'.format(self.username)
 
     def __init__(self, email, password, role, first_name, last_name, department, occupation, active):
         self.email = email

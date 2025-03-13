@@ -1,7 +1,7 @@
 <footer class="bg-light py-3">
     <div class="container text-center">
         <h5>DMA</h5>
-        <p>E-Commerce Data Management Application</p>
+        <p>Aplikácia pre správu ecommerce dát </p>
         <div class="d-flex justify-content-center mb-2">
             <a href="https://github.com/tkdesign" target="_blank" class="btn btn-link text-decoration-none"><i
                     class="bi bi-github"></i></a>
@@ -19,7 +19,7 @@
     function loadChart(endpoint, containerId) {
         const container = document.getElementById(containerId);
         if (!container) {
-            console.error(`Container with ID "${containerId}" not found.`);
+            console.error(`Kontajner s ID "${containerId}" nenájdený.`);
             return;
         }
 
@@ -33,9 +33,9 @@
                 data.layout.width = 400;
                 data.layout.height = 300;
                 Plotly.newPlot(containerId, data.data, data.layout)
-                    .catch(error => console.error(`Error plotting "${containerId}":`, error));
+                    .catch(error => console.error(`Chyba pri vykresľovaní "${containerId}":`, error));
             })
-            .catch(error => console.error(`Error fetching data for "${containerId}":`, error));
+            .catch(error => console.error(`Chyba pri načítavaní údajov pre "${containerId}":`, error));
     }
 
     function render_dashboard(filter) {
@@ -62,7 +62,7 @@
                     Math.round(data.conversion_rate).toLocaleString('sk-SK') + '%' +
                     `<br><div class="card-numeric-subtitle">Konverzia</div>`;
             })
-            .catch(error => console.error('Error loading summary:', error));
+            .catch(error => console.error('Chybné načítanie prehľadu:', error));
 
         loadChart('{{ url_for('dashboard.get_period_revenue') }}' + params, 'period-revenue-chart');
         loadChart('{{ url_for('dashboard.get_orders_heatmap') }}' + params, 'orders-heatmap-chart');
@@ -149,42 +149,42 @@
             paginationInitialPage: 1,
             ajaxURL: "{{ url_for('admin.etl_data') }}",
             ajaxConfig: "GET",
-            placeholder: "No ETL log data available",
+            placeholder: "Žiadne záznamy o prenose dát nie sú dostupné",
             columns: [
                 {title: "ID", field: "id", sorter: "number", width: 60, headerFilter:"input", headerFilterFunc:"="},
-                {title: "Job Name", field: "job_name", sorter: "string", headerFilter:"input"},
-                {title: "Started At", field: "started_at", sorter: "date", formatter: "datetime", formatterParams: {
+                {title: "Názov úlohy", field: "job_name", sorter: "string", headerFilter:"input"},
+                {title: "Spustené o", field: "started_at", sorter: "date", formatter: "datetime", formatterParams: {
                         inputFormat: 'iso',
                         outputFormat: "yyyy-MM-dd HH:mm:ss",
                         invalidPlaceholder: "-"
                     }
                 },
-                {title: "Ended At", field: "ended_at", sorter: "date", formatter: "datetime", formatterParams: {
+                {title: "Ukončené o", field: "ended_at", sorter: "date", formatter: "datetime", formatterParams: {
                         inputFormat: 'iso',
                         outputFormat: "yyyy-MM-dd HH:mm:ss",
                         invalidPlaceholder: "-"
                     }
                 },
-                {title: "Status", field: "status", sorter: "string", formatter: function (cell) {
+                {title: "Stav", field: "status", sorter: "string", formatter: function (cell) {
                         const status = cell.getValue();
                         if (status === "RUNNING") {
-                            return "<span class='badge bg-primary'>" + status + "</span>";
+                            return "<span class='badge bg-primary'>PREBIEHA</span>";
                         } else if (status === "SUCCESS") {
-                            return "<span class='badge bg-success'>" + status + "</span>";
+                            return "<span class='badge bg-success'>ÚSPECH</span>";
                         } else if (status === "FAILED") {
-                            return "<span class='badge bg-danger'>" + status + "</span>";
+                            return "<span class='badge bg-danger'>ZLYHANIE</span>";
                         } else if (status === "REVOKED") {
-                            return "<span class='badge bg-secondary'>" + status + "</span>";
+                            return "<span class='badge bg-secondary'>ZRUŠENÉ</span>";
                         }
                         return status;
                     }
                 },
-                {title: "Message", field: "message", sorter: "string", headerFilter:"input"},
-                {title: "Tables Processed", field: "tables_processed", sorter: "number"},
-                {title: "Actions", field: "actions", headerSort: false, formatter: function (cell){
+                {title: "Hlásenie", field: "message", sorter: "string", headerFilter:"input"},
+                {title: "Spracované tabuľky", field: "tables_processed", sorter: "number"},
+                {title: "Akcie", field: "actions", headerSort: false, formatter: function (cell){
                     const data = cell.getRow().getData();
                     if(data.status === "RUNNING" && data.task_id) {
-                        return "<button class='btn btn-sm btn-danger stop-task-btn' data-task-id='" + data.task_id + "'>Stop</button>";
+                        return "<button class='btn btn-sm btn-danger stop-task-btn' data-task-id='" + data.task_id + "'>Zastaviť</button>";
                     }
                     return "";
                 }, width: 100}
@@ -212,15 +212,15 @@
                 .then(data => {
                     const error = data.hasOwnProperty("error");
                     if (error) {
-                        alert("Error starting ETL: " + data.error);
+                        alert("Chyba pri spustení prenosu dát: " + data.error);
                         return;
                     }
                     const taskId = (data.hasOwnProperty("chain_task_id") ? data.chain_task_id : null);
-                    alert("ETL process started. Task ID: " + taskId);
+                    alert("Začal sa proces prenosu dát. ID úlohy: " + taskId);
                     table.setData();
                 })
                 .catch(error => {
-                    console.error("Error starting ETL:", error);
+                    console.error("Chyba pri spustení prenosu dát:", error);
                 });
             });
         }
@@ -238,11 +238,11 @@
                         })
                         .then(response => response.json())
                         .then(data => {
-                            alert("Task " + taskId + " revoked.");
+                            alert("Úloha " + taskId + " zrušená.");
                             table.setData();
                         })
                         .catch(error => {
-                            console.error("Error revoking task:", error);
+                            console.error("Chyba pri rušení úlohy:", error);
                         });
                     }
                 });
@@ -336,19 +336,19 @@
             paginationInitialPage: 1,
             ajaxURL: "{{ url_for('admin.users_data') }}",
             ajaxConfig:"GET",
-            placeholder:"No users available",
+            placeholder:"Žiadni používatelia nie sú k dispozícii",
             columns: [
                 {title:"ID", field:"id", sorter:"number", width:60, headerFilter:"input", headerFilterFunc:"="},
                 {title:"Email", field:"email", sorter:"string", headerFilter:"input"},
-                {title:"Role", field:"role", sorter:"string"},
-                {title:"First Name", field:"first_name", sorter:"string", headerFilter:"input"},
-                {title:"Last Name", field:"last_name", sorter:"string", headerFilter:"input"},
-                {title:"Department", field:"department", sorter:"string", headerFilter:"input"},
-                {title:"Occupation", field:"occupation", sorter:"string", headerFilter:"input"},
-                {title:"Actions", field:"actions", headerSort: false, formatter: function(cell) {
+                {title:"Rola", field:"role", sorter:"string"},
+                {title:"Meno", field:"first_name", sorter:"string", headerFilter:"input"},
+                {title:"Priezvisko", field:"last_name", sorter:"string", headerFilter:"input"},
+                {title:"Oddelenie", field:"department", sorter:"string", headerFilter:"input"},
+                {title:"Pozícia", field:"occupation", sorter:"string", headerFilter:"input"},
+                {title:"Akcie", field:"actions", headerSort: false, formatter: function(cell) {
                     const data = cell.getRow().getData();
                     const user_edit_url = "{{ url_for('admin.user_edit', user_id=0) }}".replace('0', data.id);
-                    return "<a href='" + user_edit_url + "' class='btn btn-sm btn-primary'>Edit</a>";
+                    return "<a href='" + user_edit_url + "' class='btn btn-sm btn-primary'>Upraviť</a>";
                 }, width:100}
             ]
         });
@@ -369,17 +369,17 @@
             paginationInitialPage: 1,
             ajaxURL: "{{ url_for('reports.reports_data') }}",
             ajaxConfig: "GET",
-            placeholder: "No reports available",
+            placeholder: "Nie sú k dispozícii žiadne reporty",
             columns: [
                 {title: "ID", field: "id", sorter: "number", width: 60, headerFilter:"input", headerFilterFunc:"="},
-                {title: "Report type", field: "report_type", sorter: "string", headerFilter:"input"},
-                {title: "Started At", field: "started_at", sorter: "date", formatter: "datetime", formatterParams: {
+                {title: "Typ správy", field: "report_type", sorter: "string", headerFilter:"input"},
+                {title: "Spustené o", field: "started_at", sorter: "date", formatter: "datetime", formatterParams: {
                         inputFormat: 'iso',
                         outputFormat: "yyyy-MM-dd HH:mm:ss",
                         invalidPlaceholder: "-"
                     }
                 },
-                {title: "Ended At", field: "ended_at", sorter: "date", formatter: "datetime", formatterParams: {
+                {title: "Ukončené o", field: "ended_at", sorter: "date", formatter: "datetime", formatterParams: {
                         inputFormat: 'iso',
                         outputFormat: "yyyy-MM-dd HH:mm:ss",
                         invalidPlaceholder: "-"
@@ -399,14 +399,14 @@
                         return status;
                     }
                 },
-                {title: "Message", field: "message", sorter: "string", headerFilter:"input"},
-                {title: "Actions", field: "actions", headerSort: false, formatter: function (cell) {
+                {title: "Hlásenie", field: "message", sorter: "string", headerFilter:"input"},
+                {title: "Akcie", field: "actions", headerSort: false, formatter: function (cell) {
                     const data = cell.getRow().getData();
                     if(data.status === "RUNNING" && data.task_id) {
-                        return "<button class='btn btn-sm btn-danger stop-task-btn' data-task-id='" + data.task_id + "'>Stop</button>";
+                        return "<button class='btn btn-sm btn-danger stop-task-btn' data-task-id='" + data.task_id + "'>Zastaviť</button>";
                     } else if (data.status === "SUCCESS") {
                         const view_report_url = "{{ url_for('reports.view_report', report_id=0) }}".replace('0', data.id);
-                        return "<a href='" + view_report_url + "' class='btn btn-sm btn-primary'>View</a>";
+                        return "<a href='" + view_report_url + "' class='btn btn-sm btn-primary'>Zobraziť</a>";
                     }
                     return "";
                 }, width: 100}
@@ -424,7 +424,7 @@
                 if (reportTypeFilter) {
                     const selectedOption = reportTypeFilter.options[reportTypeFilter.selectedIndex];
                     if (!selectedOption) {
-                        alert("Please select a report type.");
+                        alert("Vyberte typ reportu.");
                         return;
                     }
 
@@ -470,15 +470,15 @@
                     .then(data => {
                         const error = data.hasOwnProperty("error");
                         if (error) {
-                            alert("Error creating report: " + data.error);
+                            alert("Chyba pri vytváraní reportu: " + data.error);
                             return;
                         }
                         const taskId = (data.hasOwnProperty("task_id") ? data.task_id : null);
-                        alert("Report creation started. Task ID: " + taskId);
+                        alert("Začalo sa vytváranie reportu. ID úlohy: " + taskId);
                         table.setData();
                     })
                     .catch(error => {
-                        console.error("Error creating report:", error);
+                        console.error("Chyba pri vytváraní reportu:", error);
                     });
                 }
             });
@@ -497,11 +497,11 @@
                         })
                         .then(response => response.json())
                         .then(data => {
-                            alert("Task " + taskId + " revoked.");
+                            alert("Úloha " + taskId + " zrušená.");
                             table.setData();
                         })
                         .catch(error => {
-                            console.error("Error revoking task:", error);
+                            console.error("Chyba pri rušení úlohy:", error);
                         });
                     }
                 });
@@ -567,7 +567,7 @@
                                 });
                             })
                             .catch(error => {
-                                console.error(`Error loading filter "${filter}":`, error);
+                                console.error(`Chybné načítanie filtra "${filter}":`, error);
                             });
 
                             filterElement.parentElement.parentElement.classList.remove('d-none');
@@ -590,13 +590,13 @@
         const containerId = 'chart-container';
         const container = document.getElementById(containerId);
         if (!container) {
-            console.error(`Container with ID "${containerId}" not found.`);
+            console.error(`Kontajner s ID "${containerId}" nenájdený.`);
             return;
         }
         reportData.layout.width = 400;
         reportData.layout.height = 300;
         Plotly.newPlot(containerId, reportData.data, reportData.layout)
-            .catch(error => console.error(`Error plotting "${containerId}":`, error));
+            .catch(error => console.error(`Chyba pri vykresľovaní "${containerId}":`, error));
     }
     document.addEventListener('DOMContentLoaded', () => {
         showReport();

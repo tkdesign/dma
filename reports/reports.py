@@ -95,13 +95,13 @@ def reports_index():
                 for subfilter_key, subfilter_value in value["subfilters"].items():
                     report_types[key]["subfilters"][subfilter_key] = {"title": subfilter_value["title"]}
 
-    return render_template('reports/reports.html', title='DMA - Reports', page='reports', months=months, quarters=quarters, years=years, report_types=report_types)
+    return render_template('reports/reports.html', title='DMA - Reporty', page='reports', months=months, quarters=quarters, years=years, report_types=report_types)
 
 @reports_blueprint.route('/get_subfilter_options', methods=['POST'])
 @login_required
 def get_subfilter_options():
     if not current_user.is_authenticated:
-        return jsonify({"error": "Unauthorized"}), 403
+        return jsonify({"error": "Neautorizovaný Prístup."}), 403
 
     current_date = datetime.datetime.now()
     report_type = request.json.get('report_type')
@@ -140,7 +140,7 @@ def get_subfilter_options():
 @login_required
 def create_report():
     if not current_user.is_authenticated:
-        return jsonify({"error": "Unauthorized"}), 403
+        return jsonify({"error": "Neautorizovaný Prístup."}), 403
 
     report_type = request.json.get('report_type')
     subfilters = request.json.get('subfilters')
@@ -198,7 +198,7 @@ def create_report():
 @login_required
 def reports_data():
     if not current_user.is_authenticated:
-        return jsonify({"error": "Unauthorized"}), 403
+        return jsonify({"error": "Neautorizovaný Prístup."}), 403
 
     try:
         page = int(request.args.get('page', 1))

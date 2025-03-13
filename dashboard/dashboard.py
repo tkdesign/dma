@@ -31,10 +31,9 @@ def apply_period_filter(original_query, current_date, filter_type, filter_value,
 
         end_day = calendar.monthrange(filter_value_year, filter_value_month)[1]
 
-        valid_customer_filter = f"dc.valid_from <= '{filter_value_year}-{filter_value_month}-{end_day}' AND dc.valid_to >= '{filter_value_year}-{filter_value_month}-01'"
-        valid_product_filter = f"dp.valid_from <= '{filter_value_year}-{filter_value_month}-{end_day}' AND dp.valid_to >= '{filter_value_year}-{filter_value_month}-01'"
-        valid_order_state_filter = f"dos.valid_from <= '{filter_value_year}-{filter_value_month}-{end_day}' AND dos.valid_to >= '{filter_value_year}-{filter_value_month}-01'"
-        query = original_query.format(filter="month = " + str(filter_value_month) + " AND year = " + str(filter_value_year), filter_raw="'month = " + str(filter_value_month) + " AND year = " + str(filter_value_year) + "'", valid_customer_filter=valid_customer_filter, valid_product_filter=valid_product_filter, valid_order_state_filter=valid_order_state_filter, group_filter="{group_filter}")
+        date_filter = f"month = {filter_value_month} AND year = {filter_value_year}"
+        valid_filter = "{alias}.valid_from <= '{filter_value_year}-{filter_value_month}-{end_day}' AND {alias}.valid_to >= '{filter_value_year}-{filter_value_month}-01'".format(alias="{alias}", filter_value_year=filter_value_year, filter_value_month=filter_value_month, end_day=end_day)
+        date_format = "YYYY-MM-DD"
     elif filter_type == "quarter" and filter_value:
         try:
             filter_value_parts = filter_value.split("-")
@@ -48,20 +47,18 @@ def apply_period_filter(original_query, current_date, filter_type, filter_value,
         end_month = filter_value_quarter*3
         end_day = calendar.monthrange(filter_value_year, end_month)[1]
 
-        valid_customer_filter = f"dc.valid_from <= '{filter_value_year}-{end_month}-{end_day}' AND dc.valid_to >= '{filter_value_year}-{start_month}-01'"
-        valid_product_filter = f"dp.valid_from <= '{filter_value_year}-{end_month}-{end_day}' AND dp.valid_to >= '{filter_value_year}-{start_month}-01'"
-        valid_order_state_filter = f"dos.valid_from <= '{filter_value_year}-{end_month}-{end_day}' AND dos.valid_to >= '{filter_value_year}-{start_month}-01'"
-        query = original_query.format(
-            filter="quarter = " + str(filter_value_quarter) + " AND year = " + str(filter_value_year), filter_raw="'quarter = " + str(filter_value_quarter) + " AND year = " + str(filter_value_year) + "'", valid_customer_filter=valid_customer_filter, valid_product_filter=valid_product_filter, valid_order_state_filter=valid_order_state_filter, group_filter="{group_filter}")
+        date_filter = f"quarter = {filter_value_quarter} AND year = {filter_value_year}"
+        valid_filter = "{alias}.valid_from <= '{filter_value_year}-{end_month}-{end_day}' AND {alias}.valid_to >= '{filter_value_year}-{start_month}-01'".format(alias="{alias}", filter_value_year=filter_value_year, start_month=start_month, end_month=end_month, end_day=end_day)
+        date_format = "MM"
     elif filter_type == "year" and filter_value:
         try:
             filter_value = int(filter_value)
         except ValueError:
-            filter_value = 0
-        valid_customer_filter = f"dc.valid_from <= '{filter_value}-12-31' AND dc.valid_to >= '{filter_value}-01-01'"
-        valid_product_filter = f"dp.valid_from <= '{filter_value}-12-31' AND dp.valid_to >= '{filter_value}-01-01'"
-        valid_order_state_filter = f"dos.valid_from <= '{filter_value}-12-31' AND dos.valid_to >= '{filter_value}-01-01'"
-        query = original_query.format(filter="year = " + str(filter_value), filter_raw="'year = " + str(filter_value) + "'", valid_customer_filter=valid_customer_filter, valid_product_filter=valid_product_filter, valid_order_state_filter=valid_order_state_filter, group_filter="{group_filter}")
+            filter_value = current_year
+
+        date_filter = f"year = {filter_value}"
+        valid_filter = "{alias}.valid_from <= '{filter_value}-12-31' AND {alias}.valid_to >= '{filter_value}-01-01'".format(alias="{alias}", filter_value=filter_value)
+        date_format = "MM"
     elif filter_type == "range" and range_start or range_end:
         try:
             date_start = range_start
@@ -70,16 +67,22 @@ def apply_period_filter(original_query, current_date, filter_type, filter_value,
             filter_value_end = datetime.datetime.strptime(date_end, "%Y-%m-%d").date()
         except ValueError:
             filter_value_start = filter_value_end = datetime.datetime.strptime(current_date, "%Y-%m-%d").date()
-        valid_customer_filter = f"valid_from <= '{range_end}' AND valid_to >= '{range_start}'"
-        valid_product_filter = f"valid_from <= '{range_end}' AND valid_to >= '{range_start}'"
-        valid_order_state_filter = f"valid_from <= '{range_end}' AND valid_to >= '{range_start}'"
-        query = original_query.format(filter="date BETWEEN '" + str(filter_value_start) + "' AND '" + str(filter_value_end) + "'", filter_raw="'date BETWEEN ''" + str(filter_value_start) + "'' AND ''" + str(filter_value_end) + "'''", valid_customer_filter=valid_customer_filter, valid_product_filter=valid_product_filter, valid_order_state_filter=valid_order_state_filter, group_filter="{group_filter}")
+
+        date_filter = f"date BETWEEN '{filter_value_start}' AND '{filter_value_end}'"
+        valid_filter = "{alias}.valid_from <= '{range_end}' AND {alias}.valid_to >= '{range_start}'".format(alias="{alias}", range_start=range_start, range_end=range_end)
+        date_format = "YYYY-MM-DD"
     else:
-        current_year = datetime.datetime.now().year
-        valid_customer_filter = f"dc.valid_from <= '{filter_value}-12-31' AND dc.valid_to >= '{filter_value}-01-01'"
-        valid_product_filter = f"dp.valid_from <= '{filter_value}-12-31' AND dp.valid_to >= '{filter_value}-01-01'"
-        valid_order_state_filter = f"dos.valid_from <= '{filter_value}-12-31' AND dos.valid_to >= '{filter_value}-01-01'"
-        query = original_query.format(filter="year = " + str(current_year), filter_raw="'year = " + str(current_year) + "'", valid_customer_filter=valid_customer_filter, valid_product_filter=valid_product_filter, valid_order_state_filter=valid_order_state_filter, group_filter="{group_filter}")
+        try:
+            filter_value = int(filter_value)
+        except ValueError:
+            filter_value = current_year
+
+        date_filter = f"year = {filter_value}"
+        valid_filter = "{alias}.valid_from <= '{filter_value}-12-31' AND {alias}.valid_to >= '{filter_value}-01-01'".format(
+            alias="{alias}", filter_value=filter_value)
+        date_format = "MM"
+
+    query = original_query.format(filter=date_filter, filter_raw=f"'{date_filter}'", valid_customer_filter=valid_filter.format(alias="dc"), valid_product_filter=valid_filter.format(alias="dp"), valid_order_state_filter=valid_filter.format(alias="dos"), group_filter="{group_filter}", date_format=date_format)
     return query
 
 @dashboard_blueprint.before_request
@@ -100,7 +103,7 @@ def dashboard_index():
         quarters = conn.execute(text(filter_queries["quarters"]), parameters = {"min_date": min_date_row.min_date}).fetchall()
         years = conn.execute(text(filter_queries["years"]), parameters ={"min_date": min_date_row.min_date}).fetchall()
 
-    return render_template('dashboard/dashboard.html', title='DMA - Dashboard', page='dashboard', months=months, quarters=quarters, years=years)
+    return render_template('dashboard/dashboard.html', title='DMA - Informačný panel', page='dashboard', months=months, quarters=quarters, years=years)
 
 @dashboard_blueprint.route('/get-summary', methods=['GET'])
 @login_required
@@ -119,25 +122,48 @@ def get_summary():
         range_start = request.args.get("filter_value_start")
         range_end = request.args.get("filter_value_end")
 
-    query = apply_period_filter(dashboard_queries["summary"], current_date, filter_type, filter_value, range_start, range_end)
-
     with dwh_engine.connect() as conn:
-        summary_df = pd.read_sql_query(text(query), conn)
-    if summary_df.empty:
-        return jsonify({})
+        carts_query = apply_period_filter(dashboard_queries["carts_query"], current_date, filter_type, filter_value, range_start, range_end)
 
-    summary_df['orders_count'] = summary_df['orders_count'].astype('int64')
-    summary_df['total_revenue'] = summary_df['total_revenue'].astype('float64')
-    summary_df['avg_order_value'] = summary_df['avg_order_value'].astype('float64')
-    summary_df['carts_count'] = summary_df['carts_count'].astype('int64')
-    summary_df['avg_age'] = summary_df['avg_age'].astype('float64')
-    summary_df = summary_df.fillna({'orders_count': 0, 'total_revenue': 0.0, 'avg_order_value': 0.0, 'carts_count': 0, 'conversion_rate': 0.0, 'avg_age': 0.0})
-    summary_df = summary_df.astype({'orders_count': 'int64', 'total_revenue': 'float64', 'avg_order_value': 'float64', 'carts_count': 'int64', 'conversion_rate': 'float64', 'avg_age': 'float64'})
-    summary_data = summary_df.iloc[0].to_dict()
-    del summary_df
+        carts_df = pd.read_sql_query(text(carts_query), conn)
+        carts_count = carts_df['carts_count'].iloc[0]
+        del carts_df
+
+        orders_query = apply_period_filter(dashboard_queries["orders_query"], current_date, filter_type, filter_value, range_start, range_end)
+        orders_df = pd.read_sql_query(text(orders_query), conn)
+
+        customer_query = apply_period_filter(dashboard_queries["customer_query"], current_date, filter_type, filter_value, range_start, range_end)
+        customers_df = pd.read_sql_query(text(customer_query), conn)
+
+        merged_df = orders_df.merge(customers_df,
+                                  left_on='customer_sk',
+                                  right_on='customer_key',
+                                  how='left')
+
+        del orders_df, customers_df
+
+        merged_df['birthdate'] = pd.to_datetime(merged_df['birthdate'], errors='coerce')
+
+        summary = {
+            'orders_count': merged_df['orderid_bk'].nunique(),
+            'total_revenue': round(merged_df['total_paid_tax_incl'].sum(), 2),
+            'avg_order_value': 0.0 if merged_df.empty else merged_df['total_paid_tax_incl'].mean(),
+            'carts_count': int(carts_count),
+            'conversion_rate': (merged_df['orderid_bk'].nunique() * 100.0 / carts_count
+                              if carts_count > 0 else 0.0),
+            'avg_age': (pd.Timestamp.now().year - merged_df['birthdate'].dt.year).mean()
+                       if not merged_df['birthdate'].isna().all() else 0.0
+        }
+
+        summary['orders_count'] = int(summary['orders_count'])
+        summary['total_revenue'] = float(summary['total_revenue'])
+        summary['avg_order_value'] = float(summary['avg_order_value'])
+        summary['conversion_rate'] = round(float(summary['conversion_rate']), 2)
+        summary['avg_age'] = float(summary['avg_age']) if summary['avg_age'] else 0.0
+        del merged_df
+
     gc.collect()
-    return jsonify(summary_data)
-
+    return jsonify(summary if summary else {})
 
 @dashboard_blueprint.route('/get-period-revenue', methods=['GET'])
 @login_required
@@ -163,16 +189,7 @@ def get_period_revenue():
 
     try:
         fig = px.bar(revenue_df, x='period', y='total_revenue', title='Príjmy')
-        fig.update_layout(
-            xaxis=dict(
-                tickmode="linear",
-                dtick=1,
-                title="Period",
-                type="category"
-            ),
-            yaxis=dict(title="Príjmy"),
-            margin=dict(l=40, r=40, t=40, b=40)
-        )
+        fig.update_layout(xaxis=dict(tickmode="linear", dtick=1, title="Period", type="category"), yaxis=dict(title="Príjmy"), margin=dict(l=40, r=40, t=40, b=40))
     except Exception as e:
         return jsonify({})
 

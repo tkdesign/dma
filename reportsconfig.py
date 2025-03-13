@@ -29,45 +29,28 @@ filter_queries = {
 }
 
 dashboard_queries = {
-    "summary": """
-    WITH total_carts AS (
-        SELECT COUNT(DISTINCT cartid_bk) AS carts_count
-        FROM fact_cart_line
-        WHERE date_sk IN (SELECT date_key FROM dim_date WHERE {filter})
-    ),
-    orders AS (
-        SELECT DISTINCT
-            orderid_bk,
-            customer_sk,
-            MAX(paid_tax_incl) AS total_paid_tax_incl
-        FROM fact_order_line
-        WHERE date_sk IN (SELECT date_key FROM dim_date WHERE {filter})
-        GROUP BY orderid_bk, customer_sk
-    )
-    SELECT 
-        COUNT(DISTINCT o.orderid_bk) AS orders_count,
-        CAST(SUM(o.total_paid_tax_incl) AS NUMERIC(20,2)) AS total_revenue,
-        AVG(o.total_paid_tax_incl) AS avg_order_value,
-        (SELECT carts_count FROM total_carts) AS carts_count,
-        CASE 
-            WHEN (SELECT carts_count FROM total_carts) = 0 THEN 0
-            ELSE ROUND(COUNT(o.orderid_bk) * 100.0 / (SELECT carts_count FROM total_carts), 2)
-        END AS conversion_rate,
-        AVG(EXTRACT(YEAR FROM AGE(dc.birthdate))) AS avg_age
-    FROM orders o
-    LEFT JOIN dim_customer dc ON o.customer_sk = dc.customer_key
-    WHERE {valid_customer_filter}
-    ;
+    "carts_query": """
+    SELECT COUNT(DISTINCT cartid_bk) AS carts_count
+    FROM fact_cart_line
+    WHERE date_sk IN (SELECT date_key FROM dim_date WHERE {filter})
     """,
-    "period_revenue": """    
+    "orders_query": """
+    SELECT DISTINCT
+        orderid_bk,
+        customer_sk,
+        MAX(paid_tax_incl) AS total_paid_tax_incl
+    FROM fact_order_line
+    WHERE date_sk IN (SELECT date_key FROM dim_date WHERE {filter})
+    GROUP BY orderid_bk, customer_sk
+    """,
+    "customer_query": """
+    SELECT dc.customer_key, dc.birthdate
+    FROM dim_customer dc
+    WHERE {valid_customer_filter}
+    """,
+    "period_revenue":"""
     SELECT
-        CASE
-            WHEN {filter_raw} LIKE '%year%' AND {filter_raw} NOT LIKE '%month%' AND {filter_raw} NOT LIKE '%quarter%' THEN TO_CHAR(d.date, 'MM')
-            WHEN {filter_raw} LIKE '%year%' AND {filter_raw} LIKE '%month%' THEN TO_CHAR(d.date, 'YYYY-MM-DD')
-            WHEN {filter_raw} LIKE '%year%' AND {filter_raw} LIKE '%quarter%' THEN TO_CHAR(d.date, 'MM')
-            WHEN {filter_raw} LIKE 'date BETWEEN%' THEN TO_CHAR(d.date, 'YYYY-MM-DD')
-            ELSE TO_CHAR(d.date, 'YYYY-MM-DD')
-        END AS period,
+        TO_CHAR(d.date, '{date_format}') AS period,
         SUM(fo.amount_tax_incl) AS total_revenue
     FROM fact_order_line fo
     JOIN dim_date d ON fo.date_sk = d.date_key
@@ -179,7 +162,7 @@ dashboard_queries = {
     WHERE {filter} AND {valid_order_state_filter}
     GROUP BY dos.current_state, dd.month
     ORDER BY dd.month;
-""",
+    """,
 }
 
 reports_queries = {
@@ -211,13 +194,7 @@ reports_queries = {
         "title": "Group revenue",
         "query": """
         SELECT
-            CASE
-                WHEN {filter_raw} LIKE '%year%' AND {filter_raw} NOT LIKE '%month%' AND {filter_raw} NOT LIKE '%quarter%' THEN TO_CHAR(d.date, 'MM')
-                WHEN {filter_raw} LIKE '%year%' AND {filter_raw} LIKE '%month%' THEN TO_CHAR(d.date, 'YYYY-MM-DD')
-                WHEN {filter_raw} LIKE '%year%' AND {filter_raw} LIKE '%quarter%' THEN TO_CHAR(d.date, 'MM')
-                WHEN {filter_raw} LIKE 'date BETWEEN%' THEN TO_CHAR(d.date, 'YYYY-MM-DD')
-                ELSE TO_CHAR(d.date, 'YYYY-MM-DD')
-            END AS period,
+            TO_CHAR(d.date, '{date_format}') AS period,
             SUM(fo.amount_tax_incl) AS total_revenue
         FROM fact_order_line fo
         JOIN dim_date d ON fo.date_sk = d.date_key

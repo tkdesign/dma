@@ -36,7 +36,7 @@ def require_http_auth():
 @login_required
 def users():
     if current_user.is_admin():
-        return render_template('admin/users.html', title='DMA - Users', page='users')
+        return render_template('admin/users.html', title='DMA - Používatelia', page='users')
     else:
         return redirect(url_for('dashboard.dashboard_index'))
 
@@ -44,7 +44,7 @@ def users():
 @login_required
 def users_data():
     if not current_user.is_admin():
-        return jsonify({"error": "Unauthorized"}), 403
+        return jsonify({"error": "Neoprávnený Prístup"}), 403
 
     try:
         page = int(request.args.get('page', 1))
@@ -135,7 +135,7 @@ def user_edit(user_id):
         form.department.data = user.department
         form.occupation.data = user.occupation
         form.active.data = user.active
-        return render_template('admin/user.html', title='DMA - Edit User', page='users', user=user, form=form, user_id=user.id)
+        return render_template('admin/user.html', title='DMA - "Upraviť Používateľa', page='users', user=user, form=form, user_id=user.id)
 
     return redirect(url_for('admin.users'))
 
@@ -143,20 +143,20 @@ def user_edit(user_id):
 @login_required
 def user_update(user_id):
     if not current_user.is_admin():
-        return jsonify({"error": "Unauthorized"}), 403
+        return jsonify({"error": "Neoprávnený Prístup"}), 403
     form = UserProfileForm()
     if form.validate_on_submit():
         user = User.query.get(user_id)
         if not user:
-            return render_template('admin/user.html', form=form, error='User not found', title='DMA - Edit User', page='users')
+            return render_template('admin/user.html', form=form, error='User not found', title='DMA - "Upraviť Používateľa', page='users')
 
         find_user = User.query.filter_by(email=form.email.data).first()
         if find_user and find_user.id != user_id:
-            return render_template('admin/user.html', form=form, error='Email already exists',
-                                   title='DMA - Edit User', page='users')
+            return render_template('admin/user.html', form=form, error='E-mail už existuje',
+                                   title='DMA - "Upraviť Používateľa', page='users')
         if len(form.new_password.data) > 0:
             if len(form.new_password.data) < 6:
-                return render_template('admin/user.html', form=form, error='New password must be at least 6 characters', title='DMA - Edit User', page='users')
+                return render_template('admin/user.html', form=form, error='Nové heslo musí mať aspoň 6 znakov', title='DMA - "Upraviť Používateľa', page='users')
 
             user.set_password(form.new_password.data)
 
@@ -175,13 +175,13 @@ def user_update(user_id):
 def etl_control():
     if not current_user.is_admin():
         return redirect(url_for('dashboard.dashboard_index'))
-    return render_template('admin/etl_control.html', title='DMA - ETL Control', page='etl_control')
+    return render_template('admin/etl_control.html', title='DMA - Prenos dát', page='etl_control')
 
 @admin_blueprint.route('/etl_data', methods=['GET'])
 @login_required
 def etl_data():
     if not current_user.is_admin():
-        return jsonify({"error": "Unauthorized"}), 403
+        return jsonify({"error": "Neoprávnený Prístup"}), 403
 
     try:
         page = int(request.args.get('page', 1))
@@ -262,31 +262,31 @@ def etl_data():
 def run_etl_chain():
     if current_user.is_admin():
         if is_any_task_running():
-            return jsonify({"error": "ETL chain is already running."}), 200
+            return jsonify({"error": "Reťazec prenosu dát už beží."}), 200
         result = chain(stage_reload_task.s(), dwh_incremental_task.s()).apply_async()
-        return jsonify({"chain_task_id": result.id, "message": "ETL chain started."}), 200
+        return jsonify({"chain_task_id": result.id, "message": "Reťazec prenosu dát bol spustený."}), 200
     else:
-        return jsonify({"error": "Unauthorized"}), 403
+        return jsonify({"error": "Neoprávnený Prístup"}), 403
 
 @admin_blueprint.route('/revoke_task', methods=['POST'])
 @login_required
 def revoke_task():
     task_id = request.json.get("task_id")
     if not task_id:
-        return jsonify({"error": "Task ID is required"}), 200
+        return jsonify({"error": "ID úlohy je povinné"}), 200
     task = AsyncResult(task_id)
     if task.state in ['PENDING', 'STARTED']:
         task.revoke(terminate=True)
-        return jsonify({"task_id": task_id, "message": "Task revoked."}), 200
+        return jsonify({"task_id": task_id, "message": "Úloha zrušená"}), 200
     else:
-        return jsonify({"error": "Task cannot be revoked in its current state."}), 200
+        return jsonify({"error": "Úlohu nie je možné zrušiť v jej aktuálnom stave"}), 200
 
 @admin_blueprint.route('/task_status', methods=['GET'])
 @login_required
 def task_status():
     task_id = request.args.get('task_id')
     if task_id is None:
-        return jsonify({"error": "Task ID is required"}), 200
+        return jsonify({"error": "ID úlohy je povinné"}), 200
     task = AsyncResult(task_id)
     return jsonify({"task_id": task.id, "task_state": task.state, "task_result": task.result}), 200
 
@@ -300,9 +300,9 @@ def prod_db_status():
             connection.close()
             if result:
                 return jsonify({"status": "OK"}), 200
-        return jsonify({"error": "Production DB connection error"}), 200
+        return jsonify({"error": "Chyba pripojenia k operačnej databáze"}), 200
     else:
-        return jsonify({"error": "Unauthorized"}), 403
+        return jsonify({"error": "Neoprávnený Prístup"}), 403
 
 @admin_blueprint.route('/stage_db_status', methods=['GET'])
 @login_required
@@ -314,9 +314,9 @@ def stage_db_status():
             connection.close()
             if result:
                 return jsonify({"status": "OK"}), 200
-        return jsonify({"error": "Stage DB connection error"}), 200
+        return jsonify({"error": "Chyba pripojenia k dočasnej databáze"}), 200
     else:
-        return jsonify({"error": "Unauthorized"}), 403
+        return jsonify({"error": "Neoprávnený Prístup"}), 403
 
 @admin_blueprint.route('/dwh_status', methods=['GET'])
 @login_required
@@ -328,9 +328,9 @@ def dwh_status():
             connection.close()
             if result:
                 return jsonify({"status": "OK"}), 200
-        return jsonify({"error": "DWH connection error"}), 200
+        return jsonify({"error": "Chyba pripojenia k dátovému skladu"}), 200
     else:
-        return jsonify({"error": "Unauthorized"}), 403
+        return jsonify({"error": "Neoprávnený Prístup"}), 403
 
 @admin_blueprint.route('/redis_db_status', methods=['GET'])
 @login_required
@@ -340,11 +340,11 @@ def redis_db_status():
             redis_client = redis.StrictRedis.from_url(REDIS_DB_URI)
             if redis_client.ping():
                 return jsonify({"status": "OK"}), 200
-            return jsonify({"error": "Redis connection error"}), 200
+            return jsonify({"error": "Chyba pripojenia k Redis"}), 200
         except redis.ConnectionError:
-            return jsonify({"error": "Redis connection error"}), 200
+            return jsonify({"error": "Chyba pripojenia k Redis"}), 200
     else:
-        return jsonify({"error": "Unauthorized"}), 403
+        return jsonify({"error": "Neoprávnený Prístup"}), 403
 
 @admin_blueprint.route('/celery_worker_status', methods=['GET'])
 @login_required
@@ -354,6 +354,6 @@ def celery_worker_status():
         if inspector.ping():
             return jsonify({"status": "OK"}), 200
         else:
-            return jsonify({"error": "Celery worker is not running"}), 200
+            return jsonify({"error": "Celery worker nie je spustený"}), 200
     else:
-        return jsonify({"error": "Unauthorized"}), 403
+        return jsonify({"error": "Neoprávnený Prístup"}), 403
