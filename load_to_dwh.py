@@ -177,8 +177,7 @@ def load_dim_address(self, stage_engine, dwh_engine):
         LEFT JOIN sg_country c ON c.id_country = a.id_country
         LEFT JOIN sg_state s ON s.id_state = a.id_state
     ORDER BY
-        a.id_address
-    LIMIT {chunksize} OFFSET {offset};
+        a.id_address;
     """
 
     print('Start processing...')
@@ -187,19 +186,22 @@ def load_dim_address(self, stage_engine, dwh_engine):
     valid_to = today - pd.DateOffset(days=1)
     min_date = datetime(2000, 1, 1)
     chunksize = 10000
-    offset = 0
+    # offset = 0
 
-    while True:
-        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
-
+    # while True:
+    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+    with stage_engine.connect().execution_options(stream_results=True) as conn:
+        result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
+        chunk = pd.read_sql_query(result, con=stage_engine, chunksize=chunksize)
+            
         if self is not None and self.is_aborted():
             print("Úloha zrušená")
             return
 
-        if chunk.empty:
-            break
-
-        offset += chunksize
+        # if chunk.empty:
+        #     break
+        # 
+        # offset += chunksize
 
         print('Processing chunk...')
 
@@ -321,8 +323,7 @@ def load_dim_customer(self, stage_engine, dwh_engine):
     FROM
         sg_customer AS c
     ORDER BY
-        c.id_customer
-    LIMIT {chunksize} OFFSET {offset};
+        c.id_customer;
     """
 
     print('Start processing...')
@@ -331,19 +332,22 @@ def load_dim_customer(self, stage_engine, dwh_engine):
     valid_to = today - pd.DateOffset(days=1)
     min_date = datetime(2000, 1, 1)
     chunksize = 10000
-    offset = 0
+    # offset = 0
 
-    while True:
-        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+    # while True:
+    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+    with stage_engine.connect().execution_options(stream_results=True) as conn:
+        result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
+        chunk = pd.read_sql_query(result, con=stage_engine, chunksize=chunksize)
 
         if self is not None and self.is_aborted():
             print("Úloha zrušená")
             return
 
-        if chunk.empty:
-            break
-
-        offset += chunksize
+        # if chunk.empty:
+        #     break
+        #
+        # offset += chunksize
 
         print('Processing chunk...')
 
@@ -465,26 +469,28 @@ def load_dim_attribute(self, stage_engine, dwh_engine):
     LEFT JOIN
         sg_attribute_group ag ON a.id_attribute_group = ag.id_attribute_group
     ORDER BY
-        a.id_attribute
-    LIMIT {chunksize} OFFSET {offset};
+        a.id_attribute;
     """
 
     print('Start processing...')
 
     chunksize = 10000
-    offset = 0
+    # offset = 0
 
-    while True:
-        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+    # while True:
+    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+    with stage_engine.connect().execution_options(stream_results=True) as conn:
+        result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
+        chunk = pd.read_sql_query(result, con=stage_engine, chunksize=chunksize)
 
         if self is not None and self.is_aborted():
             print("Úloha zrušená")
             return
 
-        if chunk.empty:
-            break
-
-        offset += chunksize
+        # if chunk.empty:
+        #     break
+        #
+        # offset += chunksize
 
         print('Processing chunk...')
 
@@ -587,8 +593,7 @@ def load_dim_product(self, stage_engine, dwh_engine):
     LEFT JOIN
         sg_category c ON p.id_category_default = c.id_category
     ORDER BY
-        p.id_product
-    LIMIT {chunksize} OFFSET {offset};
+        p.id_product;
     """
 
     print('Start processing...')
@@ -597,19 +602,22 @@ def load_dim_product(self, stage_engine, dwh_engine):
     valid_to = today - pd.DateOffset(days=1)
     min_date = datetime(2000, 1, 1)
     chunksize = 10000
-    offset = 0
+    # offset = 0
 
-    while True:
-        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+    # while True:
+    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+    with stage_engine.connect().execution_options(stream_results=True) as conn:
+        result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
+        chunk = pd.read_sql_query(result, con=stage_engine, chunksize=chunksize)
 
         if self is not None and self.is_aborted():
             print("Úloha zrušená")
             return
 
-        if chunk.empty:
-            break
-
-        offset += chunksize
+        # if chunk.empty:
+        #     break
+        #
+        # offset += chunksize
 
         print('Processing chunk...')
 
@@ -753,26 +761,28 @@ def load_bridge_product_attribute(self, stage_engine, dwh_engine):
     LEFT JOIN
         dma_stage.public.bridge_product_attribute_fdw bpa ON dp.product_key = bpa.product_sk AND da.attribute_key = bpa.attribute_sk
     WHERE bpa.product_sk IS NULL
-    ORDER BY pac.id_product_attribute
-    LIMIT {chunksize} OFFSET {offset};
+    ORDER BY pac.id_product_attribute;
     """
 
     print('Start processing...')
 
     chunksize = 10000
-    offset = 0
+    # offset = 0
 
-    while True:
-        chunk = pd.read_sql_query(text(query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+    # while True:
+    #     chunk = pd.read_sql_query(text(query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+    with stage_engine.connect().execution_options(stream_results=True) as conn:
+        result = conn.execution_options(yield_per=chunksize).execute(text(query))
+        chunk = pd.read_sql_query(result, con=stage_engine, chunksize=chunksize)
 
         if self is not None and self.is_aborted():
             print("Úloha zrušená")
             return
 
-        if chunk.empty:
-            break
-
-        offset += chunksize
+        # if chunk.empty:
+        #     break
+        #
+        # offset += chunksize
 
         print('Processing chunk...')
 
@@ -818,8 +828,7 @@ def load_dim_order_state(self, stage_engine, dwh_engine):
     FROM
         sg_order_state os
     ORDER BY
-        os.id_order_state
-    LIMIT {chunksize} OFFSET {offset};
+        os.id_order_state;
     """
 
     print('Start processing...')
@@ -828,19 +837,22 @@ def load_dim_order_state(self, stage_engine, dwh_engine):
     valid_to = today - pd.DateOffset(days=1)
     min_date = datetime(2000, 1, 1)
     chunksize = 10000
-    offset = 0
+    # offset = 0
 
-    while True:
-        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+    # while True:
+    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+    with stage_engine.connect().execution_options(stream_results=True) as conn:
+        result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
+        chunk = pd.read_sql_query(result, con=stage_engine, chunksize=chunksize)
 
         if self is not None and self.is_aborted():
             print("Úloha zrušená")
             return
 
-        if chunk.empty:
-            break
-
-        offset += chunksize
+        # if chunk.empty:
+        #     break
+        #
+        # offset += chunksize
 
         print('Processing chunk...')
 
@@ -940,26 +952,28 @@ def load_fact_cart_line(self, stage_engine, dwh_engine):
     LEFT JOIN dma_stage.public.dim_customer_fdw dc ON sgc.id_customer = dc.customerid_bk
     LEFT JOIN dma_stage.public.fact_cart_line_fdw fcl ON fcl.cartid_bk = sgc.id_cart AND fcl.product_sk = dp.product_key
 	WHERE fcl.cartline_key IS NULL
-    ORDER BY sgcp.date_add
-    LIMIT {chunksize} OFFSET {offset};
+    ORDER BY sgcp.date_add;
     """
 
     print('Start processing...')
 
     chunksize = 10000
-    offset = 0
+    # offset = 0
 
-    while True:
-        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+    # while True:
+    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+    with stage_engine.connect().execution_options(stream_results=True) as conn:
+        result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
+        chunk = pd.read_sql_query(result, con=stage_engine, chunksize=chunksize)
 
         if self is not None and self.is_aborted():
             print("Úloha zrušená")
             return
 
-        if chunk.empty:
-            break
-
-        offset += chunksize
+        # if chunk.empty:
+        #     break
+        #
+        # offset += chunksize
 
         print('Processing chunk...')
 
@@ -1057,26 +1071,28 @@ def load_fact_order_line(self, stage_engine, dwh_engine):
     LEFT JOIN dma_stage.public.dim_address_fdw dadr ON dadr.addressid_bk = sgo.id_address_delivery
     LEFT JOIN dma_stage.public.fact_order_line_fdw fol ON fol.cartid_bk = sgo.id_order AND fol.product_sk = dp.product_key
     WHERE fol.orderline_key IS NULL
-    ORDER BY sgo.date_add
-    LIMIT {chunksize} OFFSET {offset};
+    ORDER BY sgo.date_add;
     """
 
     print('Start processing...')
 
     chunksize = 10000
-    offset = 0
+    # offset = 0
 
-    while True:
-        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+    # while True:
+    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+    with stage_engine.connect().execution_options(stream_results=True) as conn:
+        result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
+        chunk = pd.read_sql_query(result, con=stage_engine, chunksize=chunksize)
 
         if self is not None and self.is_aborted():
             print("Úloha zrušená")
             return
 
-        if chunk.empty:
-            break
-
-        offset += chunksize
+        # if chunk.empty:
+        #     break
+        #
+        # offset += chunksize
 
         print('Processing chunk...')
 
@@ -1173,26 +1189,28 @@ def load_fact_order_history(self, stage_engine, dwh_engine):
     LEFT JOIN dma_stage.public.dim_order_state_fdw dos ON dos.orderstateid_bk = sgoh.id_order_state
     LEFT JOIN dma_stage.public.fact_order_history_fdw foh ON foh.orderhistoryid_bk = sgoh.id_order_history
     WHERE foh.orderhistory_key IS NULL
-    ORDER BY sgoh.id_order_history
-    LIMIT {chunksize} OFFSET {offset};
+    ORDER BY sgoh.id_order_history;
     """
 
     print('Start processing...')
 
     chunksize = 10000
-    offset = 0
+    # offset = 0
 
-    while True:
-        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+    # while True:
+    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+    with stage_engine.connect().execution_options(stream_results=True) as conn:
+        result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
+        chunk = pd.read_sql_query(result, con=stage_engine, chunksize=chunksize)
 
         if self is not None and self.is_aborted():
             print("Úloha zrušená")
             return
 
-        if chunk.empty:
-            break
-
-        offset += chunksize
+        # if chunk.empty:
+        #     break
+        #
+        # offset += chunksize
 
         print('Processing chunk...')
 
