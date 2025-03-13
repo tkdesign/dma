@@ -287,30 +287,31 @@ def et_table(self, table_name, query, target_table, convert_items, chunksize=100
     #     chunk = pd.read_sql_query(text(query.format(chunksize=str(chunksize), offset=str(offset))), con=prod_engine)
     with prod_engine.connect().execution_options(stream_results=True) as conn:
         # result = conn.execution_options(yield_per=chunksize).execute(text(query))
-        chunk = pd.read_sql_query(text(query), con=conn, chunksize=chunksize)
+        for chunk in pd.read_sql_query(text(query), con=conn, chunksize=chunksize):
 
-        # if chunk.empty:
-        #     break
-        #
-        # offset += chunksize
 
-        for field, convert_func in convert_items:
-            chunk[field] = chunk[field].apply(convert_func)
+            # if chunk.empty:
+            #     break
+            #
+            # offset += chunksize
 
-        if self.is_aborted():
-            print("Úloha zrušená")
-            return
+            for field, convert_func in convert_items:
+                chunk[field] = chunk[field].apply(convert_func)
 
-        chunk.to_sql(target_table, con=stage_engine, if_exists='append', index=False, method='multi')
+            if self.is_aborted():
+                print("Úloha zrušená")
+                return
 
-        print(f"Spracovaných  {chunksize} riadkov.")
+            chunk.to_sql(target_table, con=stage_engine, if_exists='append', index=False, method='multi')
 
-        if self.is_aborted():
-            print("Úloha zrušená")
-            return
+            print(f"Spracovaných  {chunksize} riadkov.")
 
-        del chunk
-        gc.collect()
+            if self.is_aborted():
+                print("Úloha zrušená")
+                return
+
+            del chunk
+            gc.collect()
 
     print(f"Tabuľka {table_name} bola synchronizovaná.")
 
