@@ -286,8 +286,8 @@ def et_table(self, table_name, query, target_table, convert_items, chunksize=100
     # while True:
     #     chunk = pd.read_sql_query(text(query.format(chunksize=str(chunksize), offset=str(offset))), con=prod_engine)
     with prod_engine.connect().execution_options(stream_results=True) as conn:
-        result = conn.execution_options(yield_per=chunksize).execute(text(query))
-        chunk = pd.read_sql_query(result, con=prod_engine, chunksize=chunksize)
+        # result = conn.execution_options(yield_per=chunksize).execute(text(query))
+        chunk = pd.read_sql_query(text(query), con=conn, chunksize=chunksize)
 
         # if chunk.empty:
         #     break

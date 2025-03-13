@@ -191,8 +191,8 @@ def load_dim_address(self, stage_engine, dwh_engine):
     # while True:
     #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
     with stage_engine.connect().execution_options(stream_results=True) as conn:
-        result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
-        chunk = pd.read_sql_query(result, con=stage_engine, chunksize=chunksize)
+        # result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
+        chunk = pd.read_sql_query(stage_query, con=conn, chunksize=chunksize)
             
         if self is not None and self.is_aborted():
             print("Úloha zrušená")
@@ -337,8 +337,8 @@ def load_dim_customer(self, stage_engine, dwh_engine):
     # while True:
     #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
     with stage_engine.connect().execution_options(stream_results=True) as conn:
-        result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
-        chunk = pd.read_sql_query(result, con=stage_engine, chunksize=chunksize)
+        # result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
+        chunk = pd.read_sql_query(stage_query, con=conn, chunksize=chunksize)
 
         if self is not None and self.is_aborted():
             print("Úloha zrušená")
@@ -480,8 +480,8 @@ def load_dim_attribute(self, stage_engine, dwh_engine):
     # while True:
     #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
     with stage_engine.connect().execution_options(stream_results=True) as conn:
-        result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
-        chunk = pd.read_sql_query(result, con=stage_engine, chunksize=chunksize)
+        # result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
+        chunk = pd.read_sql_query(stage_query, con=conn, chunksize=chunksize)
 
         if self is not None and self.is_aborted():
             print("Úloha zrušená")
@@ -607,8 +607,8 @@ def load_dim_product(self, stage_engine, dwh_engine):
     # while True:
     #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
     with stage_engine.connect().execution_options(stream_results=True) as conn:
-        result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
-        chunk = pd.read_sql_query(result, con=stage_engine, chunksize=chunksize)
+        # result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
+        chunk = pd.read_sql_query(stage_query, con=conn, chunksize=chunksize)
 
         if self is not None and self.is_aborted():
             print("Úloha zrušená")
@@ -772,8 +772,8 @@ def load_bridge_product_attribute(self, stage_engine, dwh_engine):
     # while True:
     #     chunk = pd.read_sql_query(text(query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
     with stage_engine.connect().execution_options(stream_results=True) as conn:
-        result = conn.execution_options(yield_per=chunksize).execute(text(query))
-        chunk = pd.read_sql_query(result, con=stage_engine, chunksize=chunksize)
+        # result = conn.execution_options(yield_per=chunksize).execute(text(query))
+        chunk = pd.read_sql_query(text(query), con=conn, chunksize=chunksize)
 
         if self is not None and self.is_aborted():
             print("Úloha zrušená")
@@ -842,8 +842,8 @@ def load_dim_order_state(self, stage_engine, dwh_engine):
     # while True:
     #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
     with stage_engine.connect().execution_options(stream_results=True) as conn:
-        result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
-        chunk = pd.read_sql_query(result, con=stage_engine, chunksize=chunksize)
+        # result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
+        chunk = pd.read_sql_query(stage_query, con=conn, chunksize=chunksize)
 
         if self is not None and self.is_aborted():
             print("Úloha zrušená")
@@ -963,8 +963,8 @@ def load_fact_cart_line(self, stage_engine, dwh_engine):
     # while True:
     #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
     with stage_engine.connect().execution_options(stream_results=True) as conn:
-        result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
-        chunk = pd.read_sql_query(result, con=stage_engine, chunksize=chunksize)
+        # result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
+        chunk = pd.read_sql_query(stage_query, con=conn, chunksize=chunksize)
 
         if self is not None and self.is_aborted():
             print("Úloha zrušená")
@@ -1082,8 +1082,8 @@ def load_fact_order_line(self, stage_engine, dwh_engine):
     # while True:
     #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
     with stage_engine.connect().execution_options(stream_results=True) as conn:
-        result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
-        chunk = pd.read_sql_query(result, con=stage_engine, chunksize=chunksize)
+        # result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
+        chunk = pd.read_sql_query(stage_query, con=conn, chunksize=chunksize)
 
         if self is not None and self.is_aborted():
             print("Úloha zrušená")
@@ -1200,8 +1200,8 @@ def load_fact_order_history(self, stage_engine, dwh_engine):
     # while True:
     #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
     with stage_engine.connect().execution_options(stream_results=True) as conn:
-        result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
-        chunk = pd.read_sql_query(result, con=stage_engine, chunksize=chunksize)
+        # result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
+        chunk = pd.read_sql_query(stage_query, con=conn, chunksize=chunksize)
 
         if self is not None and self.is_aborted():
             print("Úloha zrušená")
