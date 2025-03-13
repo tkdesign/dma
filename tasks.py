@@ -9,6 +9,7 @@ from datetime import datetime
 import time
 import gc
 from celeryconfig import broker_url, result_backend, PROD_DB_URI, STAGE_DB_URI, DWH_DB_URI
+from sqlalchemy.exc import OperationalError
 
 from load_to_dwh import load_dim_date, load_dim_time, load_dim_address, load_dim_customer, load_dim_attribute, load_dim_product, load_bridge_product_attribute, load_dim_order_state, load_fact_cart_line, load_fact_order_line, load_fact_order_history
 celery_app = Celery('etl_tasks', broker=broker_url, backend=result_backend)
@@ -285,33 +286,41 @@ def et_table(self, table_name, query, target_table, convert_items, chunksize=100
 
     # while True:
     #     chunk = pd.read_sql_query(text(query.format(chunksize=str(chunksize), offset=str(offset))), con=prod_engine)
-    with prod_engine.connect().execution_options(stream_results=True) as conn:
-        # result = conn.execution_options(yield_per=chunksize).execute(text(query))
-        for chunk in pd.read_sql_query(text(query), con=conn, chunksize=chunksize):
+    try:
+        with prod_engine.connect().execution_options(stream_results=True) as conn:
+            # result = conn.execution_options(yield_per=chunksize).execute(text(query))
+            for chunk in pd.read_sql_query(text(query), con=conn, chunksize=chunksize):
 
 
-            # if chunk.empty:
-            #     break
-            #
-            # offset += chunksize
+                # if chunk.empty:
+                #     break
+                #
+                # offset += chunksize
 
-            for field, convert_func in convert_items:
-                chunk[field] = chunk[field].apply(convert_func)
+                for field, convert_func in convert_items:
+                    chunk[field] = chunk[field].apply(convert_func)
 
-            if self.is_aborted():
-                print("Úloha zrušená")
-                return
+                if self.is_aborted():
+                    print("Úloha zrušená")
+                    return
 
-            chunk.to_sql(target_table, con=stage_engine, if_exists='append', index=False, method='multi')
+                chunk.to_sql(target_table, con=stage_engine, if_exists='append', index=False, method='multi')
 
-            print(f"Spracovaných  {chunksize} riadkov.")
+                print(f"Spracovaných  {chunksize} riadkov.")
 
-            if self.is_aborted():
-                print("Úloha zrušená")
-                return
+                if self.is_aborted():
+                    print("Úloha zrušená")
+                    return
 
-            del chunk
-            gc.collect()
+                del chunk
+                gc.collect()
+    except OperationalError as e:
+        print(e)
+        return {'status': 'FAILED', 'tables': 0}
+
+    except Exception as e:
+        print(e)
+        return {'status': 'FAILED', 'tables': 0}
 
     print(f"Tabuľka {table_name} bola synchronizovaná.")
 
