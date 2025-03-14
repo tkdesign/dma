@@ -177,7 +177,8 @@ def load_dim_address(self, stage_engine, dwh_engine):
         LEFT JOIN sg_country c ON c.id_country = a.id_country
         LEFT JOIN sg_state s ON s.id_state = a.id_state
     ORDER BY
-        a.id_address;
+        a.id_address
+    LIMIT {chunksize} OFFSET {offset};
     """
 
     print('Start processing...')
@@ -186,117 +187,115 @@ def load_dim_address(self, stage_engine, dwh_engine):
     valid_to = today - pd.DateOffset(days=1)
     min_date = datetime(2000, 1, 1)
     chunksize = 10000
-    # offset = 0
+    offset = 0
 
-    # while True:
-    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
-    with stage_engine.connect().execution_options(stream_results=True) as conn:
-        # result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
-        for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
-            if self is not None and self.is_aborted():
-                print("Úloha zrušená")
-                return
+    while True:
+        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
 
-            # if chunk.empty:
-            #     break
-            #
-            # offset += chunksize
+        if self is not None and self.is_aborted():
+            print("Úloha zrušená")
+            return
 
-            print('Processing chunk...')
+        if chunk.empty:
+            break
 
-            chunk['country'] = chunk['country'].replace('', None)
-            chunk['state'] = chunk['state'].replace('', None)
-            chunk['city'] = chunk['city'].replace('', None)
+        offset += chunksize
 
-            chunk['row_hash_stage'] = chunk.apply(calc_hash_dim_address, axis=1)
-            business_keys = chunk['addressid_bk'].unique().tolist()
-            query_dim = text("SELECT * FROM dma_dwh.public.dim_address WHERE addressid_bk IN :keys")
-            df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys": tuple(business_keys)})
+        print('Processing chunk...')
 
-            if self is not None and self.is_aborted():
-                print("Úloha zrušená")
-                return
+        chunk['country'] = chunk['country'].replace('', None)
+        chunk['state'] = chunk['state'].replace('', None)
+        chunk['city'] = chunk['city'].replace('', None)
 
-            if not df_dim.empty:
-                df_dim['row_hash_dim'] = df_dim.apply(lambda row: calc_hash_dim_address({
+        chunk['row_hash_stage'] = chunk.apply(calc_hash_dim_address, axis=1)
+        business_keys = chunk['addressid_bk'].unique().tolist()
+        query_dim = text("SELECT * FROM dma_dwh.public.dim_address WHERE addressid_bk IN :keys")
+        df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys": tuple(business_keys)})
+
+        if self is not None and self.is_aborted():
+            print("Úloha zrušená")
+            return
+
+        if not df_dim.empty:
+            df_dim['row_hash_dim'] = df_dim.apply(lambda row: calc_hash_dim_address({
+                'addressid_bk': row['addressid_bk'],
+                'customerid_bk': row['customerid_bk'],
+                'country': row['country'],
+                'state': row['state'],
+                'city': row['city'],
+                'zipcode': row['zipcode'],
+            }), axis=1)
+        else:
+            df_dim['row_hash_dim'] = None
+
+        merged = pd.merge(chunk, df_dim, on='addressid_bk', how='left', suffixes=('_stage', '_dim'))
+
+        new_records = merged[merged['address_key'].isnull()] if 'address_key' in merged.columns else merged
+        changed_records = merged[(merged['address_key'].notnull()) & (merged['row_hash_stage'] != merged['row_hash_dim'])]
+
+        for idx, row in new_records.iterrows():
+            insert_sql = text("""
+            INSERT INTO dma_dwh.public.dim_address (addressid_bk, customerid_bk, country, state, city, zipcode, valid_from, valid_to)
+            VALUES (:addressid_bk, :customerid_bk, :country, :state, :city, :zipcode, :valid_from, '9999-12-31');
+            """)
+            valid_from = row['date_add_stage'] if not pd.isna(row['date_add_stage']) else min_date
+            with dwh_engine.begin() as conn:
+                conn.execute(insert_sql, {
                     'addressid_bk': row['addressid_bk'],
-                    'customerid_bk': row['customerid_bk'],
-                    'country': row['country'],
-                    'state': row['state'],
-                    'city': row['city'],
-                    'zipcode': row['zipcode'],
-                }), axis=1)
-            else:
-                df_dim['row_hash_dim'] = None
+                    'customerid_bk': row['customerid_bk_stage'],
+                    'country': row['country_stage'],
+                    'state': row['state_stage'],
+                    'city': row['city_stage'],
+                    'zipcode': row['zipcode_stage'],
+                    'valid_from': valid_from,
+                })
 
-            merged = pd.merge(chunk, df_dim, on='addressid_bk', how='left', suffixes=('_stage', '_dim'))
+            if self is not None and self.is_aborted():
+                print("Úloha zrušená")
+                return
 
-            new_records = merged[merged['address_key'].isnull()] if 'address_key' in merged.columns else merged
-            changed_records = merged[(merged['address_key'].notnull()) & (merged['row_hash_stage'] != merged['row_hash_dim'])]
+        for idx, row in changed_records.iterrows():
+            update_sql = text("""
+            UPDATE dma_dwh.public.dim_address
+            SET valid_to = :valid_to
+            WHERE address_key = :address_key;
+            """)
+            with dwh_engine.begin() as conn:
+                conn.execute(update_sql, {
+                    'valid_to': valid_to,
+                    'address_key': row['address_key']
+                })
 
-            for idx, row in new_records.iterrows():
-                insert_sql = text("""
-                INSERT INTO dma_dwh.public.dim_address (addressid_bk, customerid_bk, country, state, city, zipcode, valid_from, valid_to)
-                VALUES (:addressid_bk, :customerid_bk, :country, :state, :city, :zipcode, :valid_from, '9999-12-31');
-                """)
-                valid_from = row['date_add_stage'] if not pd.isna(row['date_add_stage']) else min_date
-                with dwh_engine.begin() as conn:
-                    conn.execute(insert_sql, {
-                        'addressid_bk': row['addressid_bk'],
-                        'customerid_bk': row['customerid_bk_stage'],
-                        'country': row['country_stage'],
-                        'state': row['state_stage'],
-                        'city': row['city_stage'],
-                        'zipcode': row['zipcode_stage'],
-                        'valid_from': valid_from,
-                    })
+            if self is not None and self.is_aborted():
+                print("Úloha zrušená")
+                return
 
-                if self is not None and self.is_aborted():
-                    print("Úloha zrušená")
-                    return
+            insert_sql = text("""
+            INSERT INTO dma_dwh.public.dim_address (addressid_bk, customerid_bk, country, state, city, zipcode, valid_from, valid_to)
+            VALUES (:addressid_bk, :customerid_bk, :country, :state, :city, :zipcode, :valid_from, '9999-12-31');
+            """)
+            valid_from = row['valid_from'] if not pd.isna(row['valid_from']) else min_date
+            with dwh_engine.begin() as conn:
+                conn.execute(insert_sql, {
+                    'addressid_bk': row['addressid_bk'],
+                    'customerid_bk': row['customerid_bk_stage'],
+                    'country': row['country_stage'],
+                    'state': row['state_stage'],
+                    'city': row['city_stage'],
+                    'zipcode': row['zipcode_stage'],
+                    'valid_from': valid_from,
+                })
 
-            for idx, row in changed_records.iterrows():
-                update_sql = text("""
-                UPDATE dma_dwh.public.dim_address
-                SET valid_to = :valid_to
-                WHERE address_key = :address_key;
-                """)
-                with dwh_engine.begin() as conn:
-                    conn.execute(update_sql, {
-                        'valid_to': valid_to,
-                        'address_key': row['address_key']
-                    })
+            if self is not None and self.is_aborted():
+                print("Úloha zrušená")
+                return
 
-                if self is not None and self.is_aborted():
-                    print("Úloha zrušená")
-                    return
-
-                insert_sql = text("""
-                INSERT INTO dma_dwh.public.dim_address (addressid_bk, customerid_bk, country, state, city, zipcode, valid_from, valid_to)
-                VALUES (:addressid_bk, :customerid_bk, :country, :state, :city, :zipcode, :valid_from, '9999-12-31');
-                """)
-                valid_from = row['valid_from'] if not pd.isna(row['valid_from']) else min_date
-                with dwh_engine.begin() as conn:
-                    conn.execute(insert_sql, {
-                        'addressid_bk': row['addressid_bk'],
-                        'customerid_bk': row['customerid_bk_stage'],
-                        'country': row['country_stage'],
-                        'state': row['state_stage'],
-                        'city': row['city_stage'],
-                        'zipcode': row['zipcode_stage'],
-                        'valid_from': valid_from,
-                    })
-
-                if self is not None and self.is_aborted():
-                    print("Úloha zrušená")
-                    return
-
-            del new_records
-            del changed_records
-            del merged
-            del df_dim
-            del chunk
-            gc.collect()
+        del new_records
+        del changed_records
+        del merged
+        del df_dim
+        del chunk
+        gc.collect()
 
     print("Processing completed.")
     return
@@ -322,7 +321,8 @@ def load_dim_customer(self, stage_engine, dwh_engine):
     FROM
         sg_customer AS c
     ORDER BY
-        c.id_customer;
+        c.id_customer
+    LIMIT {chunksize} OFFSET {offset};
     """
 
     print('Start processing...')
@@ -331,119 +331,117 @@ def load_dim_customer(self, stage_engine, dwh_engine):
     valid_to = today - pd.DateOffset(days=1)
     min_date = datetime(2000, 1, 1)
     chunksize = 10000
-    # offset = 0
+    offset = 0
 
-    # while True:
-    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
-    with stage_engine.connect().execution_options(stream_results=True) as conn:
-        # result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
-        for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
-            if self is not None and self.is_aborted():
-                print("Úloha zrušená")
-                return
+    while True:
+        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
 
-            # if chunk.empty:
-            #     break
-            #
-            # offset += chunksize
+        if self is not None and self.is_aborted():
+            print("Úloha zrušená")
+            return
 
-            print('Processing chunk...')
+        if chunk.empty:
+            break
 
-            chunk['gender'] = chunk['gender'].replace('[neuvádzam]', None)
+        offset += chunksize
 
-            chunk['row_hash_stage'] = chunk.apply(calc_hash_dim_customer, axis=1)
-            business_keys = chunk['customerid_bk'].unique().tolist()
+        print('Processing chunk...')
 
-            query_dim = text("SELECT * FROM dma_dwh.public.dim_customer WHERE customerid_bk IN :keys")
-            df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys": tuple(business_keys)})
+        chunk['gender'] = chunk['gender'].replace('[neuvádzam]', None)
 
-            if self is not None and self.is_aborted():
-                print("Úloha zrušená")
-                return
+        chunk['row_hash_stage'] = chunk.apply(calc_hash_dim_customer, axis=1)
+        business_keys = chunk['customerid_bk'].unique().tolist()
 
-            if not df_dim.empty:
-                df_dim['row_hash_dim'] = df_dim.apply(lambda row: calc_hash_dim_customer({
+        query_dim = text("SELECT * FROM dma_dwh.public.dim_customer WHERE customerid_bk IN :keys")
+        df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys": tuple(business_keys)})
+
+        if self is not None and self.is_aborted():
+            print("Úloha zrušená")
+            return
+
+        if not df_dim.empty:
+            df_dim['row_hash_dim'] = df_dim.apply(lambda row: calc_hash_dim_customer({
+                'customerid_bk': row['customerid_bk'],
+                'hashedemail': row['hashedemail'],
+                'defaultgroup': row['defaultgroup'],
+                'birthday': row['birthdate'],
+                'gender': row['gender'],
+                'businessaccount': row['businessaccount'],
+                'active': row['active']
+            }), axis=1)
+        else:
+            df_dim['row_hash_dim'] = None
+
+        merged = pd.merge(chunk, df_dim, on='customerid_bk', how='left', suffixes=('_stage', '_dim'))
+
+        new_records = merged[merged['customer_key'].isnull()] if 'customer_key' in merged.columns else merged
+        changed_records = merged[(merged['customer_key'].notnull()) & (merged['row_hash_stage'] != merged['row_hash_dim'])]
+
+        for idx, row in new_records.iterrows():
+            insert_sql = text("""
+            INSERT INTO dma_dwh.public.dim_customer (customerid_bk, hashedemail, defaultgroup, birthdate, gender, businessaccount, active, valid_from, valid_to)
+            VALUES (:customerid_bk, :hashedemail, :defaultgroup, :birthdate, :gender, :businessaccount, :active, :valid_from, '9999-12-31');
+            """)
+            valid_from = row['date_add_stage'] if not pd.isna(row['date_add_stage']) else min_date
+            with dwh_engine.begin() as conn:
+                conn.execute(insert_sql, {
                     'customerid_bk': row['customerid_bk'],
-                    'hashedemail': row['hashedemail'],
-                    'defaultgroup': row['defaultgroup'],
-                    'birthday': row['birthdate'],
-                    'gender': row['gender'],
-                    'businessaccount': row['businessaccount'],
-                    'active': row['active']
-                }), axis=1)
-            else:
-                df_dim['row_hash_dim'] = None
+                    'hashedemail': row['hashedemail_stage'],
+                    'defaultgroup': row['defaultgroup_stage'],
+                    'birthdate': row['birthday'],
+                    'gender': row['gender_stage'],
+                    'businessaccount': row['businessaccount_stage'],
+                    'active': row['active_stage'],
+                    'valid_from': valid_from,
+                })
 
-            merged = pd.merge(chunk, df_dim, on='customerid_bk', how='left', suffixes=('_stage', '_dim'))
+            if self is not None and self.is_aborted():
+                print("Úloha zrušená")
+                return
 
-            new_records = merged[merged['customer_key'].isnull()] if 'customer_key' in merged.columns else merged
-            changed_records = merged[(merged['customer_key'].notnull()) & (merged['row_hash_stage'] != merged['row_hash_dim'])]
+        for idx, row in changed_records.iterrows():
+            update_sql = text("""
+            UPDATE dma_dwh.public.dim_customer
+            SET valid_to = :valid_to
+            WHERE customer_key = :customer_key;
+            """)
+            with dwh_engine.begin() as conn:
+                conn.execute(update_sql, {
+                    'valid_to': valid_to,
+                    'customer_key': row['customer_key']
+                })
 
-            for idx, row in new_records.iterrows():
-                insert_sql = text("""
-                INSERT INTO dma_dwh.public.dim_customer (customerid_bk, hashedemail, defaultgroup, birthdate, gender, businessaccount, active, valid_from, valid_to)
-                VALUES (:customerid_bk, :hashedemail, :defaultgroup, :birthdate, :gender, :businessaccount, :active, :valid_from, '9999-12-31');
-                """)
-                valid_from = row['date_add_stage'] if not pd.isna(row['date_add_stage']) else min_date
-                with dwh_engine.begin() as conn:
-                    conn.execute(insert_sql, {
-                        'customerid_bk': row['customerid_bk'],
-                        'hashedemail': row['hashedemail_stage'],
-                        'defaultgroup': row['defaultgroup_stage'],
-                        'birthdate': row['birthday'],
-                        'gender': row['gender_stage'],
-                        'businessaccount': row['businessaccount_stage'],
-                        'active': row['active_stage'],
-                        'valid_from': valid_from,
-                    })
+            if self is not None and self.is_aborted():
+                print("Úloha zrušená")
+                return
 
-                if self is not None and self.is_aborted():
-                    print("Úloha zrušená")
-                    return
+            insert_sql = text("""
+            INSERT INTO dma_dwh.public.dim_customer (customerid_bk, hashedemail, defaultgroup, birthdate, gender, businessaccount, active, valid_from, valid_to)
+            VALUES (:customerid_bk, :hashedemail, :defaultgroup, :birthdate, :gender, :businessaccount, :active, :valid_from, '9999-12-31');
+            """)
+            valid_from = row['valid_from'] if not pd.isna(row['valid_from']) else min_date
+            with dwh_engine.begin() as conn:
+                conn.execute(insert_sql, {
+                    'customerid_bk': row['customerid_bk'],
+                    'hashedemail': row['hashedemail_stage'],
+                    'defaultgroup': row['defaultgroup_stage'],
+                    'birthdate': row['birthday'],
+                    'gender': row['gender_stage'],
+                    'businessaccount': row['businessaccount_stage'],
+                    'active': row['active_stage'],
+                    'valid_from': valid_from,
+                })
 
-            for idx, row in changed_records.iterrows():
-                update_sql = text("""
-                UPDATE dma_dwh.public.dim_customer
-                SET valid_to = :valid_to
-                WHERE customer_key = :customer_key;
-                """)
-                with dwh_engine.begin() as conn:
-                    conn.execute(update_sql, {
-                        'valid_to': valid_to,
-                        'customer_key': row['customer_key']
-                    })
+            if self is not None and self.is_aborted():
+                print("Úloha zrušená")
+                return
 
-                if self is not None and self.is_aborted():
-                    print("Úloha zrušená")
-                    return
-
-                insert_sql = text("""
-                INSERT INTO dma_dwh.public.dim_customer (customerid_bk, hashedemail, defaultgroup, birthdate, gender, businessaccount, active, valid_from, valid_to)
-                VALUES (:customerid_bk, :hashedemail, :defaultgroup, :birthdate, :gender, :businessaccount, :active, :valid_from, '9999-12-31');
-                """)
-                valid_from = row['valid_from'] if not pd.isna(row['valid_from']) else min_date
-                with dwh_engine.begin() as conn:
-                    conn.execute(insert_sql, {
-                        'customerid_bk': row['customerid_bk'],
-                        'hashedemail': row['hashedemail_stage'],
-                        'defaultgroup': row['defaultgroup_stage'],
-                        'birthdate': row['birthday'],
-                        'gender': row['gender_stage'],
-                        'businessaccount': row['businessaccount_stage'],
-                        'active': row['active_stage'],
-                        'valid_from': valid_from,
-                    })
-
-                if self is not None and self.is_aborted():
-                    print("Úloha zrušená")
-                    return
-
-            del new_records
-            del changed_records
-            del merged
-            del df_dim
-            del chunk
-            gc.collect()
+        del new_records
+        del changed_records
+        del merged
+        del df_dim
+        del chunk
+        gc.collect()
 
     print("Processing completed.")
     return
@@ -467,96 +465,95 @@ def load_dim_attribute(self, stage_engine, dwh_engine):
     LEFT JOIN
         sg_attribute_group ag ON a.id_attribute_group = ag.id_attribute_group
     ORDER BY
-        a.id_attribute;
+        a.id_attribute
+    LIMIT {chunksize} OFFSET {offset};
     """
 
     print('Start processing...')
 
     chunksize = 10000
-    # offset = 0
+    offset = 0
 
-    # while True:
-    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
-    with stage_engine.connect().execution_options(stream_results=True) as conn:
-        # result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
-        for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
-            if self is not None and self.is_aborted():
-                print("Úloha zrušená")
-                return
+    while True:
+        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
 
-            # if chunk.empty:
-            #     break
-            #
-            # offset += chunksize
+        if self is not None and self.is_aborted():
+            print("Úloha zrušená")
+            return
 
-            print('Processing chunk...')
+        if chunk.empty:
+            break
 
-            chunk['attribute_name'] = chunk['attribute_name'].replace('', 'Unknown').fillna('Unknown')
-            chunk['attribute_group'] = chunk['attribute_group'].replace('', None)
+        offset += chunksize
 
-            chunk['row_hash_stage'] = chunk.apply(calc_hash_dim_attribute, axis=1)
-            business_keys = chunk['attributeid_bk'].unique().tolist()
+        print('Processing chunk...')
 
-            query_dim = text("SELECT * FROM dma_dwh.public.dim_attribute WHERE attributeid_bk IN :keys")
-            df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys": tuple(business_keys)})
+        chunk['attribute_name'] = chunk['attribute_name'].replace('', 'Unknown').fillna('Unknown')
+        chunk['attribute_group'] = chunk['attribute_group'].replace('', None)
 
-            if self is not None and self.is_aborted():
-                print("Úloha zrušená")
-                return
+        chunk['row_hash_stage'] = chunk.apply(calc_hash_dim_attribute, axis=1)
+        business_keys = chunk['attributeid_bk'].unique().tolist()
 
-            if not df_dim.empty:
-                df_dim['row_hash_dim'] = df_dim.apply(lambda row: calc_hash_dim_attribute({
+        query_dim = text("SELECT * FROM dma_dwh.public.dim_attribute WHERE attributeid_bk IN :keys")
+        df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys": tuple(business_keys)})
+
+        if self is not None and self.is_aborted():
+            print("Úloha zrušená")
+            return
+
+        if not df_dim.empty:
+            df_dim['row_hash_dim'] = df_dim.apply(lambda row: calc_hash_dim_attribute({
+                'attributeid_bk': row['attributeid_bk'],
+                'attribute_name': row['attribute_name'],
+                'attribute_group': row['attribute_group'],
+            }), axis=1)
+        else:
+            df_dim['row_hash_dim'] = None
+
+        merged = pd.merge(chunk, df_dim, on='attributeid_bk', how='left', suffixes=('_stage', '_dim'))
+
+        new_records = merged[merged['attribute_key'].isnull()] if 'attribute_key' in merged.columns else merged
+        changed_records = merged[(merged['attribute_key'].notnull()) & (merged['row_hash_stage'] != merged['row_hash_dim'])]
+
+        for idx, row in new_records.iterrows():
+            insert_sql = text("""
+            INSERT INTO dma_dwh.public.dim_attribute (attributeid_bk, attribute_name, attribute_group)
+            VALUES (:attributeid_bk, :attribute_name, :attribute_group)
+            """)
+            with dwh_engine.begin() as conn:
+                conn.execute(insert_sql, {
                     'attributeid_bk': row['attributeid_bk'],
-                    'attribute_name': row['attribute_name'],
-                    'attribute_group': row['attribute_group'],
-                }), axis=1)
-            else:
-                df_dim['row_hash_dim'] = None
+                    'attribute_name': row['attribute_name_stage'],
+                    'attribute_group': row['attribute_group_stage'],
+                })
 
-            merged = pd.merge(chunk, df_dim, on='attributeid_bk', how='left', suffixes=('_stage', '_dim'))
+            if self is not None and self.is_aborted():
+                print("Úloha zrušená")
+                return
 
-            new_records = merged[merged['attribute_key'].isnull()] if 'attribute_key' in merged.columns else merged
-            changed_records = merged[(merged['attribute_key'].notnull()) & (merged['row_hash_stage'] != merged['row_hash_dim'])]
+        for idx, row in changed_records.iterrows():
+            update_sql = text("""
+            UPDATE dma_dwh.public.dim_attribute
+            SET attribute_name = :attribute_name, attribute_group = :attribute_group
+            WHERE attribute_key = :attribute_key
+            """)
+            with dwh_engine.begin() as conn:
+                conn.execute(update_sql, {
+                    'attribute_key': row['attribute_key'],
+                    'attribute_name': row['attribute_name_stage'],
+                    'attribute_group': row['attribute_group_stage'],
+                })
 
-            for idx, row in new_records.iterrows():
-                insert_sql = text("""
-                INSERT INTO dma_dwh.public.dim_attribute (attributeid_bk, attribute_name, attribute_group)
-                VALUES (:attributeid_bk, :attribute_name, :attribute_group)
-                """)
-                with dwh_engine.begin() as conn:
-                    conn.execute(insert_sql, {
-                        'attributeid_bk': row['attributeid_bk'],
-                        'attribute_name': row['attribute_name_stage'],
-                        'attribute_group': row['attribute_group_stage'],
-                    })
+            if self is not None and self.is_aborted():
+                print("Úloha zrušená")
+                return
 
-                if self is not None and self.is_aborted():
-                    print("Úloha zrušená")
-                    return
-
-            for idx, row in changed_records.iterrows():
-                update_sql = text("""
-                UPDATE dma_dwh.public.dim_attribute
-                SET attribute_name = :attribute_name, attribute_group = :attribute_group
-                WHERE attribute_key = :attribute_key
-                """)
-                with dwh_engine.begin() as conn:
-                    conn.execute(update_sql, {
-                        'attribute_key': row['attribute_key'],
-                        'attribute_name': row['attribute_name_stage'],
-                        'attribute_group': row['attribute_group_stage'],
-                    })
-
-                if self is not None and self.is_aborted():
-                    print("Úloha zrušená")
-                    return
-
-            del new_records
-            del changed_records
-            del merged
-            del df_dim
-            del chunk
-            gc.collect()
+        del new_records
+        del changed_records
+        del merged
+        del df_dim
+        del chunk
+        gc.collect()
 
     print("Processing completed.")
     return
@@ -590,7 +587,8 @@ def load_dim_product(self, stage_engine, dwh_engine):
     LEFT JOIN
         sg_category c ON p.id_category_default = c.id_category
     ORDER BY
-        p.id_product;
+        p.id_product
+    LIMIT {chunksize} OFFSET {offset};
     """
 
     print('Start processing...')
@@ -599,138 +597,136 @@ def load_dim_product(self, stage_engine, dwh_engine):
     valid_to = today - pd.DateOffset(days=1)
     min_date = datetime(2000, 1, 1)
     chunksize = 10000
-    # offset = 0
+    offset = 0
 
-    # while True:
-    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
-    with stage_engine.connect().execution_options(stream_results=True) as conn:
-        # result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
-        for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
-            if self is not None and self.is_aborted():
-                print("Úloha zrušená")
-                return
+    while True:
+        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
 
-            # if chunk.empty:
-            #     break
-            #
-            # offset += chunksize
+        if self is not None and self.is_aborted():
+            print("Úloha zrušená")
+            return
 
-            print('Processing chunk...')
+        if chunk.empty:
+            break
 
-            chunk['manufacturer'] = chunk['manufacturer'].replace('', None)
-            chunk['defaultcategory'] = chunk['defaultcategory'].replace('', None)
-            chunk['market_group'] = chunk['market_group'].replace('', None)
-            chunk['market_subgroup'] = chunk['market_subgroup'].replace('', None)
-            chunk['market_gender'] = chunk['market_gender'].replace('', None)
-            chunk['productattributeid_bk'] = chunk['productattributeid_bk'].fillna(0).astype('int64')
+        offset += chunksize
 
-            chunk['row_hash_stage'] = chunk.apply(calc_hash_dim_product, axis=1)
-            keys_pairs = list(zip(chunk['productid_bk'], chunk['productattributeid_bk']))
+        print('Processing chunk...')
 
-            query_dim = text("""
-            SELECT * FROM dma_dwh.public.dim_product
-            WHERE (productid_bk, productattributeid_bk) IN (
-                SELECT * FROM unnest(:keys_pairs) AS t(productid_bk int, productattributeid_bk int)
-            )
+        chunk['manufacturer'] = chunk['manufacturer'].replace('', None)
+        chunk['defaultcategory'] = chunk['defaultcategory'].replace('', None)
+        chunk['market_group'] = chunk['market_group'].replace('', None)
+        chunk['market_subgroup'] = chunk['market_subgroup'].replace('', None)
+        chunk['market_gender'] = chunk['market_gender'].replace('', None)
+        chunk['productattributeid_bk'] = chunk['productattributeid_bk'].fillna(0).astype('int64')
+
+        chunk['row_hash_stage'] = chunk.apply(calc_hash_dim_product, axis=1)
+        keys_pairs = list(zip(chunk['productid_bk'], chunk['productattributeid_bk']))
+
+        query_dim = text("""
+        SELECT * FROM dma_dwh.public.dim_product
+        WHERE (productid_bk, productattributeid_bk) IN (
+            SELECT * FROM unnest(:keys_pairs) AS t(productid_bk int, productattributeid_bk int)
+        )
+        """)
+        df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys_pairs": keys_pairs})
+
+        if self is not None and self.is_aborted():
+            print("Úloha zrušená")
+            return
+
+        if not df_dim.empty:
+            df_dim['row_hash_dim'] = df_dim.apply(lambda row: calc_hash_dim_product({
+                'productid_bk': row['productid_bk'],
+                'productattributeid_bk': row['productattributeid_bk'],
+                'productname': row['productname'],
+                'manufacturer': row['manufacturer'],
+                'defaultcategory': row['defaultcategory'],
+                'market_group': row['market_group'],
+                'market_subgroup': row['market_subgroup'],
+                'market_gender': row['market_gender'],
+                'price': row['price'],
+                'active': row['active']
+            }), axis=1)
+        else:
+            df_dim['row_hash_dim'] = None
+
+        merged = pd.merge(chunk, df_dim, on='productid_bk', how='left', suffixes=('_stage', '_dim'))
+
+        new_records = merged[merged['product_key'].isnull()] if 'product_key' in merged.columns else merged
+        changed_records = merged[(merged['product_key'].notnull()) & (merged['row_hash_stage'] != merged['row_hash_dim'])]
+
+        for idx, row in new_records.iterrows():
+            insert_sql = text("""
+            INSERT INTO dma_dwh.public.dim_product (productid_bk, productattributeid_bk, productname, manufacturer, defaultcategory, market_group, market_subgroup, market_gender, price, active, valid_from, valid_to)
+            VALUES (:productid_bk, :productattributeid_bk, :productname, :manufacturer, :defaultcategory, :market_group, :market_subgroup, :market_gender, :price, :active, :valid_from, '9999-12-31');
             """)
-            df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys_pairs": keys_pairs})
+            valid_from = row['date_add_stage'] if not pd.isna(row['date_add_stage']) else min_date
+            with dwh_engine.begin() as conn:
+                conn.execute(insert_sql, {
+                    'productid_bk': row['productid_bk'],
+                    'productattributeid_bk': row['productattributeid_bk_stage'] if not pd.isna(row['productattributeid_bk_stage']) else None,
+                    'productname': row['productname_stage'],
+                    'manufacturer': row['manufacturer_stage'],
+                    'defaultcategory': row['defaultcategory_stage'],
+                    'market_group': row['market_group_stage'],
+                    'market_subgroup': row['market_subgroup_stage'],
+                    'market_gender': row['market_gender_stage'],
+                    'price': row['price_stage'],
+                    'active': row['active_stage'],
+                    'valid_from': valid_from,
+                })
 
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
 
-            if not df_dim.empty:
-                df_dim['row_hash_dim'] = df_dim.apply(lambda row: calc_hash_dim_product({
+        for idx, row in changed_records.iterrows():
+            update_sql = text("""
+            UPDATE dma_dwh.public.dim_product
+            SET valid_to = :valid_to
+            WHERE product_key = :product_key;
+            """)
+            with dwh_engine.begin() as conn:
+                conn.execute(update_sql, {
+                    'valid_to': valid_to,
+                    'product_key': row['product_key']
+                })
+
+            if self is not None and self.is_aborted():
+                print("Úloha zrušená")
+                return
+
+            insert_sql = text("""
+            INSERT INTO dma_dwh.public.dim_product (productid_bk, productattributeid_bk, productname, manufacturer, defaultcategory, market_group, market_subgroup, market_gender, price, active, valid_from, valid_to)
+            VALUES (:productid_bk, :productattributeid_bk, :productname, :manufacturer, :defaultcategory, :market_group, :market_subgroup, :market_gender, :price, :active, :valid_from, '9999-12-31');
+            """)
+            valid_from = row['valid_from_stage'] if not pd.isna(row['valid_from_stage']) else min_date
+            with dwh_engine.begin() as conn:
+                conn.execute(insert_sql, {
                     'productid_bk': row['productid_bk'],
-                    'productattributeid_bk': row['productattributeid_bk'],
-                    'productname': row['productname'],
-                    'manufacturer': row['manufacturer'],
-                    'defaultcategory': row['defaultcategory'],
-                    'market_group': row['market_group'],
-                    'market_subgroup': row['market_subgroup'],
-                    'market_gender': row['market_gender'],
-                    'price': row['price'],
-                    'active': row['active']
-                }), axis=1)
-            else:
-                df_dim['row_hash_dim'] = None
+                    'productattributeid_bk': row['productattributeid_bk_stage'],
+                    'productname': row['productname_stage'],
+                    'manufacturer': row['manufacturer_stage'],
+                    'defaultcategory': row['defaultcategory_stage'],
+                    'market_group': row['market_group_stage'],
+                    'market_subgroup': row['market_subgroup_stage'],
+                    'market_gender': row['market_gender_stage'],
+                    'price': row['price_stage'],
+                    'active': row['active_stage'],
+                    'valid_from': valid_from,
+                })
 
-            merged = pd.merge(chunk, df_dim, on='productid_bk', how='left', suffixes=('_stage', '_dim'))
+            if self is not None and self.is_aborted():
+                print("Úloha zrušená")
+                return
 
-            new_records = merged[merged['product_key'].isnull()] if 'product_key' in merged.columns else merged
-            changed_records = merged[(merged['product_key'].notnull()) & (merged['row_hash_stage'] != merged['row_hash_dim'])]
-
-            for idx, row in new_records.iterrows():
-                insert_sql = text("""
-                INSERT INTO dma_dwh.public.dim_product (productid_bk, productattributeid_bk, productname, manufacturer, defaultcategory, market_group, market_subgroup, market_gender, price, active, valid_from, valid_to)
-                VALUES (:productid_bk, :productattributeid_bk, :productname, :manufacturer, :defaultcategory, :market_group, :market_subgroup, :market_gender, :price, :active, :valid_from, '9999-12-31');
-                """)
-                valid_from = row['date_add_stage'] if not pd.isna(row['date_add_stage']) else min_date
-                with dwh_engine.begin() as conn:
-                    conn.execute(insert_sql, {
-                        'productid_bk': row['productid_bk'],
-                        'productattributeid_bk': row['productattributeid_bk_stage'] if not pd.isna(row['productattributeid_bk_stage']) else None,
-                        'productname': row['productname_stage'],
-                        'manufacturer': row['manufacturer_stage'],
-                        'defaultcategory': row['defaultcategory_stage'],
-                        'market_group': row['market_group_stage'],
-                        'market_subgroup': row['market_subgroup_stage'],
-                        'market_gender': row['market_gender_stage'],
-                        'price': row['price_stage'],
-                        'active': row['active_stage'],
-                        'valid_from': valid_from,
-                    })
-
-                if self is not None and self.is_aborted():
-                    print("Úloha zrušená")
-                    return
-
-            for idx, row in changed_records.iterrows():
-                update_sql = text("""
-                UPDATE dma_dwh.public.dim_product
-                SET valid_to = :valid_to
-                WHERE product_key = :product_key;
-                """)
-                with dwh_engine.begin() as conn:
-                    conn.execute(update_sql, {
-                        'valid_to': valid_to,
-                        'product_key': row['product_key']
-                    })
-
-                if self is not None and self.is_aborted():
-                    print("Úloha zrušená")
-                    return
-
-                insert_sql = text("""
-                INSERT INTO dma_dwh.public.dim_product (productid_bk, productattributeid_bk, productname, manufacturer, defaultcategory, market_group, market_subgroup, market_gender, price, active, valid_from, valid_to)
-                VALUES (:productid_bk, :productattributeid_bk, :productname, :manufacturer, :defaultcategory, :market_group, :market_subgroup, :market_gender, :price, :active, :valid_from, '9999-12-31');
-                """)
-                valid_from = row['valid_from_stage'] if not pd.isna(row['valid_from_stage']) else min_date
-                with dwh_engine.begin() as conn:
-                    conn.execute(insert_sql, {
-                        'productid_bk': row['productid_bk'],
-                        'productattributeid_bk': row['productattributeid_bk_stage'],
-                        'productname': row['productname_stage'],
-                        'manufacturer': row['manufacturer_stage'],
-                        'defaultcategory': row['defaultcategory_stage'],
-                        'market_group': row['market_group_stage'],
-                        'market_subgroup': row['market_subgroup_stage'],
-                        'market_gender': row['market_gender_stage'],
-                        'price': row['price_stage'],
-                        'active': row['active_stage'],
-                        'valid_from': valid_from,
-                    })
-
-                if self is not None and self.is_aborted():
-                    print("Úloha zrušená")
-                    return
-
-            del new_records
-            del changed_records
-            del merged
-            del df_dim
-            del chunk
-            gc.collect()
+        del new_records
+        del changed_records
+        del merged
+        del df_dim
+        del chunk
+        gc.collect()
 
     print("Processing completed.")
     return
@@ -757,52 +753,51 @@ def load_bridge_product_attribute(self, stage_engine, dwh_engine):
     LEFT JOIN
         dma_stage.public.bridge_product_attribute_fdw bpa ON dp.product_key = bpa.product_sk AND da.attribute_key = bpa.attribute_sk
     WHERE bpa.product_sk IS NULL
-    ORDER BY pac.id_product_attribute;
+    ORDER BY pac.id_product_attribute
+    LIMIT {chunksize} OFFSET {offset};
     """
 
     print('Start processing...')
 
     chunksize = 10000
-    # offset = 0
+    offset = 0
 
-    # while True:
-    #     chunk = pd.read_sql_query(text(query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
-    with stage_engine.connect().execution_options(stream_results=True) as conn:
-        # result = conn.execution_options(yield_per=chunksize).execute(text(query))
-        for chunk in pd.read_sql_query(text(query), con=conn, chunksize=chunksize):
-            if self is not None and self.is_aborted():
-                print("Úloha zrušená")
-                return
+    while True:
+        chunk = pd.read_sql_query(text(query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
 
-            # if chunk.empty:
-            #     break
-            #
-            # offset += chunksize
+        if self is not None and self.is_aborted():
+            print("Úloha zrušená")
+            return
 
-            print('Processing chunk...')
+        if chunk.empty:
+            break
 
-            chunk = chunk.drop_duplicates()
+        offset += chunksize
 
-            insert_sql = text("""
-            INSERT INTO dma_dwh.public.bridge_product_attribute (product_sk, attribute_sk, productattributeid_bk, attributeid_bk)
-            VALUES (:product_sk, :attribute_sk, :id_product_attribute, :id_attribute)
-            """)
+        print('Processing chunk...')
 
-            with dwh_engine.begin() as conn:
-                for _, row in chunk.iterrows():
-                    conn.execute(insert_sql, {
-                        'product_sk': int(row['product_sk']),
-                        'attribute_sk': int(row['attribute_sk']),
-                        'id_product_attribute': int(row['id_product_attribute']),
-                        'id_attribute': int(row['id_attribute'])
-                    })
+        chunk = chunk.drop_duplicates()
 
-                    if self is not None and self.is_aborted():
-                        print("Úloha zrušená")
-                        return
+        insert_sql = text("""
+        INSERT INTO dma_dwh.public.bridge_product_attribute (product_sk, attribute_sk, productattributeid_bk, attributeid_bk)
+        VALUES (:product_sk, :attribute_sk, :id_product_attribute, :id_attribute)
+        """)
 
-            del chunk
-            gc.collect()
+        with dwh_engine.begin() as conn:
+            for _, row in chunk.iterrows():
+                conn.execute(insert_sql, {
+                    'product_sk': int(row['product_sk']),
+                    'attribute_sk': int(row['attribute_sk']),
+                    'id_product_attribute': int(row['id_product_attribute']),
+                    'id_attribute': int(row['id_attribute'])
+                })
+
+                if self is not None and self.is_aborted():
+                    print("Úloha zrušená")
+                    return
+
+        del chunk
+        gc.collect()
 
     print("Processing completed.")
     return
@@ -823,7 +818,8 @@ def load_dim_order_state(self, stage_engine, dwh_engine):
     FROM
         sg_order_state os
     ORDER BY
-        os.id_order_state;
+        os.id_order_state
+    LIMIT {chunksize} OFFSET {offset};
     """
 
     print('Start processing...')
@@ -832,97 +828,95 @@ def load_dim_order_state(self, stage_engine, dwh_engine):
     valid_to = today - pd.DateOffset(days=1)
     min_date = datetime(2000, 1, 1)
     chunksize = 10000
-    # offset = 0
+    offset = 0
 
-    # while True:
-    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
-    with stage_engine.connect().execution_options(stream_results=True) as conn:
-        # result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
-        for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
+    while True:
+        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+
+        if self is not None and self.is_aborted():
+            print("Úloha zrušená")
+            return
+
+        if chunk.empty:
+            break
+
+        offset += chunksize
+
+        print('Processing chunk...')
+
+        chunk['row_hash_stage'] = chunk.apply(calc_hash_load_dim_order_state, axis=1)
+        business_keys = chunk['orderstateid_bk'].unique().tolist()
+
+        query_dim = text("SELECT * FROM dma_dwh.public.dim_order_state WHERE orderstateid_bk IN :keys")
+        df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys": tuple(business_keys)})
+
+        if self is not None and self.is_aborted():
+            print("Úloha zrušená")
+            return
+
+        if not df_dim.empty:
+            df_dim['row_hash_dim'] = df_dim.apply(lambda row: calc_hash_load_dim_order_state({'orderstateid_bk': row['orderstateid_bk'], 'current_state': row['current_state'], }), axis=1)
+        else:
+            df_dim['row_hash_dim'] = None
+
+        merged = pd.merge(chunk, df_dim, on='orderstateid_bk', how='left', suffixes=('_stage', '_dim'))
+
+        new_records = merged[merged['orderstate_key'].isnull()] if 'orderstate_key' in merged.columns else merged
+        changed_records = merged[(merged['orderstate_key'].notnull()) & (merged['row_hash_stage'] != merged['row_hash_dim'])]
+
+        for idx, row in new_records.iterrows():
+            insert_sql = text("""
+            INSERT INTO dma_dwh.public.dim_order_state (orderstateid_bk, current_state, valid_from, valid_to)
+            VALUES (:orderstateid_bk, :current_state, :valid_from, '9999-12-31');
+            """)
+            with dwh_engine.begin() as conn:
+                conn.execute(insert_sql, {
+                    'orderstateid_bk': row['orderstateid_bk'],
+                    'current_state': row['current_state_stage'],
+                    'valid_from': min_date,
+                })
+
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
 
-            # if chunk.empty:
-            #     break
-            #
-            # offset += chunksize
-
-            print('Processing chunk...')
-
-            chunk['row_hash_stage'] = chunk.apply(calc_hash_load_dim_order_state, axis=1)
-            business_keys = chunk['orderstateid_bk'].unique().tolist()
-
-            query_dim = text("SELECT * FROM dma_dwh.public.dim_order_state WHERE orderstateid_bk IN :keys")
-            df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys": tuple(business_keys)})
+        for idx, row in changed_records.iterrows():
+            update_sql = text("""
+            UPDATE dma_dwh.public.dim_order_state
+            SET valid_to = :valid_to
+            WHERE orderstate_key = :orderstate_key;
+            """)
+            with dwh_engine.begin() as conn:
+                conn.execute(update_sql, {
+                    'valid_to': valid_to,
+                    'orderstate_key': row['orderstate_key']
+                })
 
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
 
-            if not df_dim.empty:
-                df_dim['row_hash_dim'] = df_dim.apply(lambda row: calc_hash_load_dim_order_state({'orderstateid_bk': row['orderstateid_bk'], 'current_state': row['current_state'], }), axis=1)
-            else:
-                df_dim['row_hash_dim'] = None
+            insert_sql = text("""
+            INSERT INTO dma_dwh.public.dim_order_state (orderstateid_bk, current_state, valid_from, valid_to)
+            VALUES (:orderstateid_bk, :current_state, :valid_from, '9999-12-31');
+            """)
+            with dwh_engine.begin() as conn:
+                conn.execute(insert_sql, {
+                    'orderstateid_bk': row['orderstateid_bk'],
+                    'current_state': row['current_state_stage'],
+                    'valid_from': min_date,
+                })
 
-            merged = pd.merge(chunk, df_dim, on='orderstateid_bk', how='left', suffixes=('_stage', '_dim'))
+            if self is not None and self.is_aborted():
+                print("Úloha zrušená")
+                return
 
-            new_records = merged[merged['orderstate_key'].isnull()] if 'orderstate_key' in merged.columns else merged
-            changed_records = merged[(merged['orderstate_key'].notnull()) & (merged['row_hash_stage'] != merged['row_hash_dim'])]
-
-            for idx, row in new_records.iterrows():
-                insert_sql = text("""
-                INSERT INTO dma_dwh.public.dim_order_state (orderstateid_bk, current_state, valid_from, valid_to)
-                VALUES (:orderstateid_bk, :current_state, :valid_from, '9999-12-31');
-                """)
-                with dwh_engine.begin() as conn:
-                    conn.execute(insert_sql, {
-                        'orderstateid_bk': row['orderstateid_bk'],
-                        'current_state': row['current_state_stage'],
-                        'valid_from': min_date,
-                    })
-
-                if self is not None and self.is_aborted():
-                    print("Úloha zrušená")
-                    return
-
-            for idx, row in changed_records.iterrows():
-                update_sql = text("""
-                UPDATE dma_dwh.public.dim_order_state
-                SET valid_to = :valid_to
-                WHERE orderstate_key = :orderstate_key;
-                """)
-                with dwh_engine.begin() as conn:
-                    conn.execute(update_sql, {
-                        'valid_to': valid_to,
-                        'orderstate_key': row['orderstate_key']
-                    })
-
-                if self is not None and self.is_aborted():
-                    print("Úloha zrušená")
-                    return
-
-                insert_sql = text("""
-                INSERT INTO dma_dwh.public.dim_order_state (orderstateid_bk, current_state, valid_from, valid_to)
-                VALUES (:orderstateid_bk, :current_state, :valid_from, '9999-12-31');
-                """)
-                with dwh_engine.begin() as conn:
-                    conn.execute(insert_sql, {
-                        'orderstateid_bk': row['orderstateid_bk'],
-                        'current_state': row['current_state_stage'],
-                        'valid_from': min_date,
-                    })
-
-                if self is not None and self.is_aborted():
-                    print("Úloha zrušená")
-                    return
-
-            del merged
-            del new_records
-            del changed_records
-            del df_dim
-            del chunk
-            gc.collect()
+        del merged
+        del new_records
+        del changed_records
+        del df_dim
+        del chunk
+        gc.collect()
 
     print("Processing completed.")
     return
@@ -946,87 +940,86 @@ def load_fact_cart_line(self, stage_engine, dwh_engine):
     LEFT JOIN dma_stage.public.dim_customer_fdw dc ON sgc.id_customer = dc.customerid_bk
     LEFT JOIN dma_stage.public.fact_cart_line_fdw fcl ON fcl.cartid_bk = sgc.id_cart AND fcl.product_sk = dp.product_key
 	WHERE fcl.cartline_key IS NULL
-    ORDER BY sgcp.date_add;
+    ORDER BY sgcp.date_add
+    LIMIT {chunksize} OFFSET {offset};
     """
 
     print('Start processing...')
 
     chunksize = 10000
-    # offset = 0
+    offset = 0
 
-    # while True:
-    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
-    with stage_engine.connect().execution_options(stream_results=True) as conn:
-        # result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
-        for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
+    while True:
+        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+
+        if self is not None and self.is_aborted():
+            print("Úloha zrušená")
+            return
+
+        if chunk.empty:
+            break
+
+        offset += chunksize
+
+        print('Processing chunk...')
+
+        chunk = chunk.drop_duplicates()
+        chunk = chunk[chunk['dp_product_key'].notnull() & chunk['dc_customer_key'].notnull()]
+
+        chunk['sgc_date_add'] = pd.to_datetime(chunk['sgc_date_add'], utc=True)
+        date_add_list = chunk['sgc_date_add'].dt.date.tolist()
+
+        query_date = text("SELECT date_key, date FROM dma_dwh.public.dim_date WHERE date IN :keys")
+        df_date = pd.read_sql_query(query_date, dwh_engine, params={"keys": tuple(date_add_list)})
+
+        if self is not None and self.is_aborted():
+            print("Úloha zrušená")
+            return
+
+        time_add_list = chunk['sgc_date_add'].dt.floor('h').dt.time.tolist()
+
+        query_time = text("SELECT time_key, time FROM dma_dwh.public.dim_time WHERE time IN :keys")
+        df_time = pd.read_sql_query(query_time, dwh_engine, params={"keys": tuple(time_add_list)})
+
+        if self is not None and self.is_aborted():
+            print("Úloha zrušená")
+            return
+
+        chunk['sg_date'] = chunk['sgc_date_add'].dt.date
+        chunk['sg_time'] = chunk['sgc_date_add'].dt.floor('h').dt.time
+
+        merged = pd.merge(chunk, df_date, left_on='sg_date', right_on='date', how='left')
+        merged = pd.merge(merged, df_time, left_on='sg_time', right_on='time', how='left')
+
+        merged['date_key'] = merged['date_key'].astype('float64')
+        merged['time_key'] = merged['time_key'].astype('float64')
+        merged = merged.fillna({'date_key': 0, 'time_key': 0})
+        merged = merged.astype({'date_key': 'int64', 'time_key': 'int64'})
+
+        for _, row in merged.iterrows():
+            insert_sql = text("""
+            INSERT INTO dma_dwh.public.fact_cart_line (cartid_bk, product_sk, customer_sk, date_sk, time_sk, quantity)
+            VALUES (:cartid_bk, :product_sk, :customer_sk, :date_sk, :time_sk, :quantity);
+            """)
+            with dwh_engine.begin() as conn:
+                conn.execute(insert_sql, {
+                    'cartid_bk': row['sgcp_id_cart'],
+                    'product_sk': row['dp_product_key'],
+                    'customer_sk': row['dc_customer_key'],
+                    'date_sk': row['date_key'],
+                    'time_sk': row['time_key'],
+                    'quantity': row['sgcp_quantity'],
+                })
+
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
 
-            # if chunk.empty:
-            #     break
-            #
-            # offset += chunksize
-
-            print('Processing chunk...')
-
-            chunk = chunk.drop_duplicates()
-            chunk = chunk[chunk['dp_product_key'].notnull() & chunk['dc_customer_key'].notnull()]
-
-            chunk['sgc_date_add'] = pd.to_datetime(chunk['sgc_date_add'], utc=True)
-            date_add_list = chunk['sgc_date_add'].dt.date.tolist()
-
-            query_date = text("SELECT date_key, date FROM dma_dwh.public.dim_date WHERE date IN :keys")
-            df_date = pd.read_sql_query(query_date, dwh_engine, params={"keys": tuple(date_add_list)})
-
-            if self is not None and self.is_aborted():
-                print("Úloha zrušená")
-                return
-
-            time_add_list = chunk['sgc_date_add'].dt.floor('h').dt.time.tolist()
-
-            query_time = text("SELECT time_key, time FROM dma_dwh.public.dim_time WHERE time IN :keys")
-            df_time = pd.read_sql_query(query_time, dwh_engine, params={"keys": tuple(time_add_list)})
-
-            if self is not None and self.is_aborted():
-                print("Úloha zrušená")
-                return
-
-            chunk['sg_date'] = chunk['sgc_date_add'].dt.date
-            chunk['sg_time'] = chunk['sgc_date_add'].dt.floor('h').dt.time
-
-            merged = pd.merge(chunk, df_date, left_on='sg_date', right_on='date', how='left')
-            merged = pd.merge(merged, df_time, left_on='sg_time', right_on='time', how='left')
-
-            merged['date_key'] = merged['date_key'].astype('float64')
-            merged['time_key'] = merged['time_key'].astype('float64')
-            merged = merged.fillna({'date_key': 0, 'time_key': 0})
-            merged = merged.astype({'date_key': 'int64', 'time_key': 'int64'})
-
-            for _, row in merged.iterrows():
-                insert_sql = text("""
-                INSERT INTO dma_dwh.public.fact_cart_line (cartid_bk, product_sk, customer_sk, date_sk, time_sk, quantity)
-                VALUES (:cartid_bk, :product_sk, :customer_sk, :date_sk, :time_sk, :quantity);
-                """)
-                with dwh_engine.begin() as conn:
-                    conn.execute(insert_sql, {
-                        'cartid_bk': row['sgcp_id_cart'],
-                        'product_sk': row['dp_product_key'],
-                        'customer_sk': row['dc_customer_key'],
-                        'date_sk': row['date_key'],
-                        'time_sk': row['time_key'],
-                        'quantity': row['sgcp_quantity'],
-                    })
-
-                if self is not None and self.is_aborted():
-                    print("Úloha zrušená")
-                    return
-
-            del df_date
-            del df_time
-            del merged
-            del chunk
-            gc.collect()
+        del df_date
+        del df_time
+        del merged
+        del chunk
+        gc.collect()
 
     print("Processing completed.")
     return
@@ -1064,102 +1057,101 @@ def load_fact_order_line(self, stage_engine, dwh_engine):
     LEFT JOIN dma_stage.public.dim_address_fdw dadr ON dadr.addressid_bk = sgo.id_address_delivery
     LEFT JOIN dma_stage.public.fact_order_line_fdw fol ON fol.cartid_bk = sgo.id_order AND fol.product_sk = dp.product_key
     WHERE fol.orderline_key IS NULL
-    ORDER BY sgo.date_add;
+    ORDER BY sgo.date_add
+    LIMIT {chunksize} OFFSET {offset};
     """
 
     print('Start processing...')
 
     chunksize = 10000
-    # offset = 0
+    offset = 0
 
-    # while True:
-    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
-    with stage_engine.connect().execution_options(stream_results=True) as conn:
-        # result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
-        for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
+    while True:
+        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+
+        if self is not None and self.is_aborted():
+            print("Úloha zrušená")
+            return
+
+        if chunk.empty:
+            break
+
+        offset += chunksize
+
+        print('Processing chunk...')
+
+        chunk = chunk.drop_duplicates()
+        chunk = chunk[chunk['dp_product_key'].notnull() & chunk['dc_customer_key'].notnull()]
+
+        chunk['carrier'] = chunk['carrier'].replace('', None)
+
+        chunk['sgo_date_add'] = pd.to_datetime(chunk['sgo_date_add'], utc=True)
+        date_add_list = chunk['sgo_date_add'].dt.date.tolist()
+
+        query_date = text("SELECT date_key, date FROM dma_dwh.public.dim_date WHERE date IN :keys")
+        df_date = pd.read_sql_query(query_date, dwh_engine, params={"keys": tuple(date_add_list)})
+
+        if self is not None and self.is_aborted():
+            print("Úloha zrušená")
+            return
+
+        time_add_list = chunk['sgo_date_add'].dt.floor('h').dt.time.tolist()
+
+        query_time = text("SELECT time_key, time FROM dma_dwh.public.dim_time WHERE time IN :keys")
+        df_time = pd.read_sql_query(query_time, dwh_engine, params={"keys": tuple(time_add_list)})
+
+        if self is not None and self.is_aborted():
+            print("Úloha zrušená")
+            return
+
+        chunk['sg_date'] = chunk['sgo_date_add'].dt.date
+        chunk['sg_time'] = chunk['sgo_date_add'].dt.floor('h').dt.time
+
+        merged = pd.merge(chunk, df_date, left_on='sg_date', right_on='date', how='left')
+        merged = pd.merge(merged, df_time, left_on='sg_time', right_on='time', how='left')
+
+        merged['date_key'] = merged['date_key'].astype('float64')
+        merged['time_key'] = merged['time_key'].astype('float64')
+        merged = merged.fillna({'date_key': 0, 'time_key': 0})
+        merged = merged.astype({'date_key': 'int64', 'time_key': 'int64'})
+
+        for _, row in merged.iterrows():
+            insert_sql = text("""
+            INSERT INTO dma_dwh.public.fact_order_line (orderid_bk, orderdetailid_bk, cartid_bk, product_sk, customer_sk, address_sk, date_sk, time_sk, quantity, price, price_tax_incl, amount, amount_tax_incl, paid, paid_tax_incl, taxrate, conversion_rate, carrier, paymenttype)
+            VALUES (:orderid_bk, :orderdetailid_bk, :cartid_bk, :product_sk, :customer_sk, :address_sk, :date_sk, :time_sk, :quantity, :price, :price_tax_incl, :amount, :amount_tax_incl, :paid, :paid_tax_incl, :taxrate, :conversion_rate, :carrier, :paymenttype);
+            """)
+            with dwh_engine.begin() as conn:
+                conn.execute(insert_sql, {
+                    'orderid_bk': row['sgod_id_order'],
+                    'orderdetailid_bk': row['sgod_id_order_detail'],
+                    'cartid_bk': row['sgo_id_cart'],
+                    'product_sk': row['dp_product_key'],
+                    'customer_sk': row['dc_customer_key'],
+                    'address_sk': None if pd.isna(row['dadr_address_key']) else row['dadr_address_key'],
+                    'date_sk': row['date_key'],
+                    'time_sk': row['time_key'],
+                    'quantity': row['sgod_product_quantity'],
+                    'price': row['sgod_unit_price_tax_excl'],
+                    'price_tax_incl': row['sgod_unit_price_tax_incl'],
+                    'amount': row['sgod_total_price_tax_excl'],
+                    'amount_tax_incl': row['sgod_total_price_tax_incl'],
+                    'paid': row['sgo_total_paid_tax_excl'],
+                    'paid_tax_incl': row['sgo_total_paid_tax_incl'],
+                    'taxrate': row['sgod_tax_rate'],
+                    'conversion_rate': row['sgo_conversion_rate'],
+                    'carrier': row['sgo_carrier'],
+                    'paymenttype': row['sgo_payment'],
+                })
+
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
 
-            # if chunk.empty:
-            #     break
-            #
-            # offset += chunksize
-
-            print('Processing chunk...')
-
-            chunk = chunk.drop_duplicates()
-            chunk = chunk[chunk['dp_product_key'].notnull() & chunk['dc_customer_key'].notnull()]
-
-            chunk['carrier'] = chunk['carrier'].replace('', None)
-
-            chunk['sgo_date_add'] = pd.to_datetime(chunk['sgo_date_add'], utc=True)
-            date_add_list = chunk['sgo_date_add'].dt.date.tolist()
-
-            query_date = text("SELECT date_key, date FROM dma_dwh.public.dim_date WHERE date IN :keys")
-            df_date = pd.read_sql_query(query_date, dwh_engine, params={"keys": tuple(date_add_list)})
-
-            if self is not None and self.is_aborted():
-                print("Úloha zrušená")
-                return
-
-            time_add_list = chunk['sgo_date_add'].dt.floor('h').dt.time.tolist()
-
-            query_time = text("SELECT time_key, time FROM dma_dwh.public.dim_time WHERE time IN :keys")
-            df_time = pd.read_sql_query(query_time, dwh_engine, params={"keys": tuple(time_add_list)})
-
-            if self is not None and self.is_aborted():
-                print("Úloha zrušená")
-                return
-
-            chunk['sg_date'] = chunk['sgo_date_add'].dt.date
-            chunk['sg_time'] = chunk['sgo_date_add'].dt.floor('h').dt.time
-
-            merged = pd.merge(chunk, df_date, left_on='sg_date', right_on='date', how='left')
-            merged = pd.merge(merged, df_time, left_on='sg_time', right_on='time', how='left')
-
-            merged['date_key'] = merged['date_key'].astype('float64')
-            merged['time_key'] = merged['time_key'].astype('float64')
-            merged = merged.fillna({'date_key': 0, 'time_key': 0})
-            merged = merged.astype({'date_key': 'int64', 'time_key': 'int64'})
-
-            for _, row in merged.iterrows():
-                insert_sql = text("""
-                INSERT INTO dma_dwh.public.fact_order_line (orderid_bk, orderdetailid_bk, cartid_bk, product_sk, customer_sk, address_sk, date_sk, time_sk, quantity, price, price_tax_incl, amount, amount_tax_incl, paid, paid_tax_incl, taxrate, conversion_rate, carrier, paymenttype)
-                VALUES (:orderid_bk, :orderdetailid_bk, :cartid_bk, :product_sk, :customer_sk, :address_sk, :date_sk, :time_sk, :quantity, :price, :price_tax_incl, :amount, :amount_tax_incl, :paid, :paid_tax_incl, :taxrate, :conversion_rate, :carrier, :paymenttype);
-                """)
-                with dwh_engine.begin() as conn:
-                    conn.execute(insert_sql, {
-                        'orderid_bk': row['sgod_id_order'],
-                        'orderdetailid_bk': row['sgod_id_order_detail'],
-                        'cartid_bk': row['sgo_id_cart'],
-                        'product_sk': row['dp_product_key'],
-                        'customer_sk': row['dc_customer_key'],
-                        'address_sk': None if pd.isna(row['dadr_address_key']) else row['dadr_address_key'],
-                        'date_sk': row['date_key'],
-                        'time_sk': row['time_key'],
-                        'quantity': row['sgod_product_quantity'],
-                        'price': row['sgod_unit_price_tax_excl'],
-                        'price_tax_incl': row['sgod_unit_price_tax_incl'],
-                        'amount': row['sgod_total_price_tax_excl'],
-                        'amount_tax_incl': row['sgod_total_price_tax_incl'],
-                        'paid': row['sgo_total_paid_tax_excl'],
-                        'paid_tax_incl': row['sgo_total_paid_tax_incl'],
-                        'taxrate': row['sgod_tax_rate'],
-                        'conversion_rate': row['sgo_conversion_rate'],
-                        'carrier': row['sgo_carrier'],
-                        'paymenttype': row['sgo_payment'],
-                    })
-
-                if self is not None and self.is_aborted():
-                    print("Úloha zrušená")
-                    return
-
-            del df_date
-            del df_time
-            del merged
-            del chunk
-            gc.collect()
+        del df_date
+        del df_time
+        del merged
+        del chunk
+        gc.collect()
 
     print("Processing completed.")
     return
@@ -1181,84 +1173,83 @@ def load_fact_order_history(self, stage_engine, dwh_engine):
     LEFT JOIN dma_stage.public.dim_order_state_fdw dos ON dos.orderstateid_bk = sgoh.id_order_state
     LEFT JOIN dma_stage.public.fact_order_history_fdw foh ON foh.orderhistoryid_bk = sgoh.id_order_history
     WHERE foh.orderhistory_key IS NULL
-    ORDER BY sgoh.id_order_history;
+    ORDER BY sgoh.id_order_history
+    LIMIT {chunksize} OFFSET {offset};
     """
 
     print('Start processing...')
 
     chunksize = 10000
-    # offset = 0
+    offset = 0
 
-    # while True:
-    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
-    with stage_engine.connect().execution_options(stream_results=True) as conn:
-        # result = conn.execution_options(yield_per=chunksize).execute(text(stage_query))
-        for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
+    while True:
+        chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
+
+        if self is not None and self.is_aborted():
+            print("Úloha zrušená")
+            return
+
+        if chunk.empty:
+            break
+
+        offset += chunksize
+
+        print('Processing chunk...')
+
+        chunk['sgoh_date_add'] = pd.to_datetime(chunk['sgoh_date_add'], utc=True)
+        date_add_list = chunk['sgoh_date_add'].dt.date.tolist()
+
+        query_date = text("SELECT date_key, date FROM dma_dwh.public.dim_date WHERE date IN :keys")
+        df_date = pd.read_sql_query(query_date, dwh_engine, params={"keys": tuple(date_add_list)})
+
+        if self is not None and self.is_aborted():
+            print("Úloha zrušená")
+            return
+
+        time_add_list = chunk['sgoh_date_add'].dt.floor('h').dt.time.tolist()
+
+        query_time = text("SELECT time_key, time FROM dma_dwh.public.dim_time WHERE time IN :keys")
+        df_time = pd.read_sql_query(query_time, dwh_engine, params={"keys": tuple(time_add_list)})
+
+        if self is not None and self.is_aborted():
+            print("Úloha zrušená")
+            return
+
+        chunk['sg_date'] = chunk['sgoh_date_add'].dt.date
+        chunk['sg_time'] = chunk['sgoh_date_add'].dt.floor('h').dt.time
+
+        merged = pd.merge(chunk, df_date, left_on='sg_date', right_on='date', how='left')
+        merged = pd.merge(merged, df_time, left_on='sg_time', right_on='time', how='left')
+
+        merged['date_key'] = merged['date_key'].astype('float64')
+        merged['time_key'] = merged['time_key'].astype('float64')
+        merged = merged.fillna({'date_key': 0, 'time_key': 0})
+        merged = merged.astype({'date_key': 'int64', 'time_key': 'int64'})
+
+        for _, row in merged.iterrows():
+            insert_sql = text("""
+            INSERT INTO dma_dwh.public.fact_order_history (orderhistoryid_bk, orderstate_sk, orderid_bk, orderstateid_bk, date_sk, time_sk)
+            VALUES (:orderhistoryid_bk, :orderstate_sk, :orderid_bk, :orderstateid_bk, :date_sk, :time_sk);
+            """)
+            with dwh_engine.begin() as conn:
+                conn.execute(insert_sql, {
+                    'orderhistoryid_bk': row['sgoh_id_order_history'],
+                    'orderstate_sk': row['dos_orderstate_key'],
+                    'orderid_bk': row['sgoh_id_order'],
+                    'orderstateid_bk': row['sgoh_id_order_state'],
+                    'date_sk': row['date_key'],
+                    'time_sk': row['time_key'],
+                })
+
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
 
-            # if chunk.empty:
-            #     break
-            #
-            # offset += chunksize
-
-            print('Processing chunk...')
-
-            chunk['sgoh_date_add'] = pd.to_datetime(chunk['sgoh_date_add'], utc=True)
-            date_add_list = chunk['sgoh_date_add'].dt.date.tolist()
-
-            query_date = text("SELECT date_key, date FROM dma_dwh.public.dim_date WHERE date IN :keys")
-            df_date = pd.read_sql_query(query_date, dwh_engine, params={"keys": tuple(date_add_list)})
-
-            if self is not None and self.is_aborted():
-                print("Úloha zrušená")
-                return
-
-            time_add_list = chunk['sgoh_date_add'].dt.floor('h').dt.time.tolist()
-
-            query_time = text("SELECT time_key, time FROM dma_dwh.public.dim_time WHERE time IN :keys")
-            df_time = pd.read_sql_query(query_time, dwh_engine, params={"keys": tuple(time_add_list)})
-
-            if self is not None and self.is_aborted():
-                print("Úloha zrušená")
-                return
-
-            chunk['sg_date'] = chunk['sgoh_date_add'].dt.date
-            chunk['sg_time'] = chunk['sgoh_date_add'].dt.floor('h').dt.time
-
-            merged = pd.merge(chunk, df_date, left_on='sg_date', right_on='date', how='left')
-            merged = pd.merge(merged, df_time, left_on='sg_time', right_on='time', how='left')
-
-            merged['date_key'] = merged['date_key'].astype('float64')
-            merged['time_key'] = merged['time_key'].astype('float64')
-            merged = merged.fillna({'date_key': 0, 'time_key': 0})
-            merged = merged.astype({'date_key': 'int64', 'time_key': 'int64'})
-
-            for _, row in merged.iterrows():
-                insert_sql = text("""
-                INSERT INTO dma_dwh.public.fact_order_history (orderhistoryid_bk, orderstate_sk, orderid_bk, orderstateid_bk, date_sk, time_sk)
-                VALUES (:orderhistoryid_bk, :orderstate_sk, :orderid_bk, :orderstateid_bk, :date_sk, :time_sk);
-                """)
-                with dwh_engine.begin() as conn:
-                    conn.execute(insert_sql, {
-                        'orderhistoryid_bk': row['sgoh_id_order_history'],
-                        'orderstate_sk': row['dos_orderstate_key'],
-                        'orderid_bk': row['sgoh_id_order'],
-                        'orderstateid_bk': row['sgoh_id_order_state'],
-                        'date_sk': row['date_key'],
-                        'time_sk': row['time_key'],
-                    })
-
-                if self is not None and self.is_aborted():
-                    print("Úloha zrušená")
-                    return
-
-            del df_date
-            del df_time
-            del merged
-            del chunk
-            gc.collect()
+        del df_date
+        del df_time
+        del merged
+        del chunk
+        gc.collect()
 
     print("Processing completed.")
     return
