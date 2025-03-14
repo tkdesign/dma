@@ -225,27 +225,25 @@
             });
         }
 
-        const endETLBtn = document.querySelectorAll('.stop-task-btn');
-        if (endETLBtn) {
-            endETLBtn.forEach(btn => {
-                btn.addEventListener("click", function(e) {
-                    if(e.target && e.target.matches("button.stop-task-btn")) {
-                        const taskId = e.target.getAttribute("data-task-id");
-                        fetch("{{ url_for('admin.revoke_task') }}", {
-                            method:"POST",
-                            headers: {"Content-Type": "application/json"},
-                            body: JSON.stringify({task_id: taskId})
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            alert("Úloha " + taskId + " zrušená.");
-                            table.setData();
-                        })
-                        .catch(error => {
-                            console.error("Chyba pri rušení úlohy:", error);
-                        });
-                    }
-                });
+        const etlTableElement = document.getElementById('etl-table');
+        if (etlTableElement) {
+            etlTableElement.addEventListener('click', function (e) {
+                if (e.target && e.target.matches('button.stop-task-btn')) {
+                    const taskId = e.target.getAttribute("data-task-id");
+                    fetch("{{ url_for('admin.revoke_task') }}", {
+                        method: "POST",
+                        headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({task_id: taskId})
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        alert("Úloha " + taskId + " zrušená.");
+                        table.setData();
+                    })
+                    .catch(error => {
+                        console.error("Chyba pri rušení úlohy:", error);
+                    });
+                }
             });
         }
 
@@ -484,27 +482,25 @@
             });
         }
 
-        const endGenerateReportBtn = document.querySelectorAll('.stop-task-btn');
-        if (endGenerateReportBtn) {
-            endGenerateReportBtn.forEach(btn => {
-                btn.addEventListener("click", function(e) {
-                    if(e.target && e.target.matches("button.stop-task-btn")) {
-                        const taskId = e.target.getAttribute("data-task-id");
-                        fetch("{{ url_for('admin.revoke_task') }}", {
-                            method:"POST",
-                            headers: {"Content-Type": "application/json"},
-                            body: JSON.stringify({task_id: taskId})
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            alert("Úloha " + taskId + " zrušená.");
-                            table.setData();
-                        })
-                        .catch(error => {
-                            console.error("Chyba pri rušení úlohy:", error);
-                        });
-                    }
-                });
+        const reportTable = document.getElementById('reports-table');
+        if (reportTable) {
+            reportTable.addEventListener("click", function(e) {
+                if (e.target && e.target.matches('button.stop-task-btn')) {
+                    const taskId = e.target.getAttribute("data-task-id");
+                    fetch("{{ url_for('admin.revoke_task') }}", {
+                        method:"POST",
+                        headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({task_id: taskId})
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        alert("Úloha " + taskId + " zrušená.");
+                        table.setData();
+                    })
+                    .catch(error => {
+                        console.error("Chyba pri rušení úlohy:", error);
+                    });
+                }
             });
         }
 
