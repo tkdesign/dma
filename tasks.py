@@ -498,7 +498,7 @@ def build_report_task(self, *args, **kwargs):
 
     try:
         if report_type == 'gender_distribution':
-            df['gender'].fillna('neznámy', inplace=True)
+            df['gender'] = df['gender'].fillna('Neuvedené')
             pie_trace = go.Pie(
                 labels=df['gender'],
                 values=df['customers_count'],
@@ -530,8 +530,14 @@ def build_report_task(self, *args, **kwargs):
 
             layout = go.Layout(
                 title=report_title,
-                height=800,
+                height=750,
                 grid=dict(rows=2, columns=1, pattern='independent'),
+                xaxis=dict(
+                    domain=[0, 1]
+                ),
+                yaxis=dict(
+                    domain=[0.55, 1],
+                ),
                 autosize=True
             )
 
@@ -539,8 +545,10 @@ def build_report_task(self, *args, **kwargs):
             result = fig.to_json()
 
             status = "SUCCESS"
-            message = 'Správa bola úspešne vytvorený.'
+            message = 'Správa bola úspešne vytvorená.'
         elif report_type == 'age_distribution':
+            df['age_range'] = df['age_range'].fillna('Neuvedené')
+            df['avg_order_value'] = df['avg_order_value'].round(2)
             bar_trace = go.Bar(
                 x=df['age_range'],
                 y=df['avg_order_value'],
@@ -568,7 +576,7 @@ def build_report_task(self, *args, **kwargs):
 
             layout = go.Layout(
                 title=report_title,
-                height=800,
+                height=750,
                 grid=dict(rows=2, columns=1, pattern='independent'),
                 xaxis=dict(
                     tickmode="linear",
@@ -588,8 +596,9 @@ def build_report_task(self, *args, **kwargs):
             result = fig.to_json()
 
             status = "SUCCESS"
-            message = 'Správa bola úspešne vytvorený.'
+            message = 'Správa bola úspešne vytvorená.'
         elif report_type == 'product_group_revenue':
+            df['total_revenue'] = df['total_revenue'].round(2)
             bar_trace = go.Bar(
                 x=df['period'],
                 y=df['total_revenue'],
@@ -618,7 +627,7 @@ def build_report_task(self, *args, **kwargs):
 
             layout = go.Layout(
                 title=report_title,
-                height=800,
+                height=750,
                 grid=dict(rows=2, columns=1, pattern='independent'),
                 xaxis=dict(
                     tickmode="linear",
@@ -639,8 +648,9 @@ def build_report_task(self, *args, **kwargs):
             result = fig.to_json()
 
             status = "SUCCESS"
-            message = 'Správa bola úspešne vytvorený.'
+            message = 'Správa bola úspešne vytvorená.'
         elif report_type == 'product_gender_revenue':
+            df['total_revenue'] = df['total_revenue'].round(2)
             bar_trace = go.Bar(
                 x=df['period'],
                 y=df['total_revenue'],
@@ -669,7 +679,7 @@ def build_report_task(self, *args, **kwargs):
             data = [bar_trace, table_trace]
             layout = go.Layout(
                 title=report_title,
-                height=800,
+                height=750,
                 grid=dict(rows=2, columns=1, pattern='independent'),
                 xaxis=dict(
                     tickmode="linear",
@@ -690,7 +700,7 @@ def build_report_task(self, *args, **kwargs):
             result = fig.to_json()
 
             status = "SUCCESS"
-            message = 'Správa bola úspešne vytvorený.'
+            message = 'Správa bola úspešne vytvorená.'
     except Exception as e:
         print(e)
         message = str(e)

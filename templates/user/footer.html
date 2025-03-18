@@ -713,7 +713,7 @@
     let createdAt = "{{ report.ended_at }}";
     let reportParametersData = {{ report_parameters|tojson }};
     let reportData = {{ report.result|tojson }};
-    function showReport() {
+    async function showReport() {
         const reportDetails = document.getElementById('report-details');
         if (!reportDetails) {
             return;
@@ -766,12 +766,11 @@
                             reportDetails.appendChild(dd);
                         }
                     }
-
                 }
             }
         }
 
-        report_data_type = (reportParametersData && reportParametersData.length > 0 && reportParametersData.hasOwnProperty('report_data_type') ? reportParametersData.report_data_type : 'diagram');
+        const report_data_type = (reportParametersData && reportParametersData.length > 0 && reportParametersData.hasOwnProperty('report_data_type') ? reportParametersData.report_data_type : 'diagram');
         if (report_data_type === 'diagram') {
             report_diagram_type = (reportParametersData && reportParametersData.length > 0 && reportParametersData.hasOwnProperty('report_diagram_type') ? reportParametersData.report_diagram_type : 'bar');
             if (!reportData.hasOwnProperty('layout')) {
@@ -798,8 +797,34 @@
             }
         }
     }
+
+    async function generatePDF() {
+        const response = await fetch('{{ url_for('reports.generate_pdf') }}', {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({report_id: report_id})
+        });
+
+        if (!response.ok) {
+            console.error('Chyba pri generovaní PDF súboru:', await response.text());
+            return;
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'report.pdf';
+        a.click();
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         showReport();
+
+        const generatePDFBtn = document.getElementById('generate-pdf-btn');
+        if (generatePDFBtn) {
+            generatePDFBtn.addEventListener('click', generatePDF);
+        }
     });
 </script>
 {% elif page == 'profile' %}
