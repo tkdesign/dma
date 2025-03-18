@@ -6,3 +6,19 @@ main {
     padding-top: 1rem;
     padding-bottom: 1rem;
 }
+
+.card-with-diagram-body {
+    padding: 5px;
+}
+
+.chart-container {
+    width: 100%;
+}
+
+.card-with-table-body {
+    padding: 5px;
+}
+
+.table-container {
+    width: 100%;
+}

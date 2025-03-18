@@ -3,7 +3,7 @@
         <h5>DMA</h5>
         <p>Aplikácia pre správu ecommerce dát </p>
         <div class="d-flex justify-content-center mb-2">
-            <a href="https://github.com/tkdesign" target="_blank" class="btn btn-link text-decoration-none"><i
+            <a href="https://github.com/tkdesign/dma" target="_blank" class="btn btn-link text-decoration-none"><i
                     class="bi bi-github"></i></a>
         </div>
         <div>
@@ -16,6 +16,40 @@
 <script src="{{ url_for('static', filename='assets/plotly/plotly.min.js') }}"></script>
 <script src="{{ url_for('static', filename='assets/plotly/plotly-locale-sk.js') }}"></script>
 <script>
+    const svg_download_icon = {
+        width: 1000,
+        height: 1000,
+        path: "M875 281.25V875a125 125 0 0 1-125 125v-62.5a62.5 62.5 0 0 0 62.5-62.5V281.25h-125A93.75 93.75 0 0 1 593.75 187.5V62.5H250a62.5 62.5 0 0 0-62.5 62.5v562.5H125V125a125 125 0 0 1 125-125h343.75zM0 927.5625a70.625 70.625 0 0 0 25.0625 51.4375q12.125 10.125 29.875 15.75q17.8125 5.6875 41.5625 5.6875 31.6875 0 53.625-9.875 22.1875-9.875 33.75-27.5a73.125 73.125 0 0 0 11.6875-41.0q0-21.0-8.4375-35.0a62.5 62.5 0 0 0-23.4375-22.3125 125 125 0 0 0-35.3125-13.125l-38.8125-9.0a62.5 62.5 0 0 1-25.3125-11.0.23125.23125 0 0 1-8.9375-18.6875q0-14.625 11.5-24.0 11.6875-9.5 32.0625-9.5 13.375 0 23.125 4.25a37.5 37.5 0 0 1 15.3125 11.3125.35.35 0 0 1 7.5 16.125h46.875a68.75 68.75 0 0 0-12.4375-35.375 75 75 0 0 0-31.25-25.625 112.5 112.5 0 0 0-48.75-9.5q-27.5 0-48.5 9.375-21.0625 9.3125-33.0 26.3125-11.875 17.0625-11.875 39.9375 0 18.875 7.6875 32.75t21.9375 22.9375q14.3125 8.9375 33.75 13.3125l38.625 9.0q19.375 4.5625 28.875 12.0625a24.375 24.375 0 0 1 9.5625 20.375.3125.3125 0 0 1-5.3125 18.125.35.35 0 0 1-16.0 12.0625q-10.4375 4.375-25.8125 4.375-11.0 0-20.0-2.5a50 50 0 0 1-15.5-7.1875.3625.3625 0 0 1-15.9375-24.0zm285.9375 68.125h59.5l82.9375-249.9375h-54.9375l-55.4375 196.125H315.625l-56.0625-196.125h-57.3125zm342.6875-205.8125q7.125 14.25 8.75 30.75h-48.5a50 50 0 0 0-6.0-15.5625.4375.4375 0 0 0-10.625-11.875.4375.4375 0 0 0-14.8125-7.875 62.5 62.5 0 0 0-18.75-2.75q-26.6875 0-41.5 18.875-14.6875 18.75-14.6875 53.125v31.0625q0 22.0 6.0625 38.5a56.25 56.25 0 0 0 19.0625 25.8125.54375.54375 0 0 0 32.375 9.125 62.5 62.5 0 0 0 28.5625-6.0625.41875.41875 0 0 0 17.0625-16.4375q5.625-10.25 5.625-22.75v-15.875h-51.4375v-36.875h98.5v49.875q0 18.125-6.0 34.375a81.25 81.25 0 0 1-18.3125 28.5625 87.5 87.5 0 0 1-30.9375 19.625q-18.5 6.9375-43.625 6.9375a125 125 0 0 1-47.0-8.25 90.625 90.625 0 0 1-33.375-23.5625 100 100 0 0 1-19.9375-36.25 156.25 156.25 0 0 1-6.5625-46.5625v-31.6875q0-33.75 12.4375-59.3125 12.625-25.375 36.4375-39.5625 23.9375-14.25 57.875-14.25q22.3125 0 39.6875 6.25 17.625 6.25 30.0 17.1875 12.5 11.0 19.625 25.4375",
+        transform: "matrix(1 0 0 -1 0 1000)"
+    };
+    const config = {
+        locale: 'sk',
+        responsive: true,
+        toImageButtonOptions: {
+            format: 'png',
+            filename: 'chart_png',
+            height: 500,
+            width: 700,
+            scale: 1,
+        },
+        modeBarButtonsToAdd: [
+            {
+                name: 'Uložiť ako SVG',
+                icon: svg_download_icon,
+                click: function(gd) {
+                    Plotly.downloadImage(gd, {
+                        format: 'svg',
+                        filename: 'chart_svg',
+                        height: 500,
+                        width: 700,
+                        scale: 1
+                    });
+                }
+            }
+        ],
+        modeBarButtonsToRemove: ['pan2d', 'select2d', 'lasso2d', 'resetScale2d'],
+        displaylogo: false,
+    };
     function loadChart(endpoint, containerId) {
         const container = document.getElementById(containerId);
         if (!container) {
@@ -29,11 +63,8 @@
                 if (!data.hasOwnProperty('layout')) {
                     return;
                 }
-                //data.layout.title = '';
-                data.layout.width = 400;
-                data.layout.height = 300;
-                Plotly.newPlot(containerId, data.data, data.layout)
-                    .catch(error => console.error(`Chyba pri vykresľovaní "${containerId}":`, error));
+                Plotly.newPlot(containerId, data.data, data.layout, config)
+                .catch(error => console.error(`Chyba pri vykresľovaní "${containerId}":`, error));
             })
             .catch(error => console.error(`Chyba pri načítavaní údajov pre "${containerId}":`, error));
     }
@@ -57,7 +88,7 @@
                     parseInt(data.orders_count).toLocaleString('sk-SK') + `<br><div class="card-numeric-subtitle">Objednávky</div>`;
                 document.getElementById('total-revenue').innerHTML =
                     Math.round(data.total_revenue).toLocaleString('sk-SK') + ` &euro;` +
-                    `<br><div class="card-numeric-subtitle">Príjmy</div>`;
+                    `<br><div class="card-numeric-subtitle">Výnosy</div>`;
                 document.getElementById('conversion-rate').innerHTML =
                     Math.round(data.conversion_rate).toLocaleString('sk-SK') + '%' +
                     `<br><div class="card-numeric-subtitle">Konverzia</div>`;
@@ -68,8 +99,6 @@
         loadChart('{{ url_for('dashboard.get_orders_heatmap') }}' + params, 'orders-heatmap-chart');
         loadChart('{{ url_for('dashboard.get_gender_distribution') }}' + params, 'gender-distribution-chart');
         loadChart('{{ url_for('dashboard.get_age_distribution') }}' + params, 'age-distribution-chart');
-        loadChart('{{ url_for('dashboard.get_gender_quartile_distribution') }}' + params, 'gender-quartile-distribution-chart');
-        loadChart('{{ url_for('dashboard.get_order_status_heatmap') }}' + params, 'order-status-heatmap');
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -145,11 +174,27 @@
             paginationMode: "remote",
             filterMode: "remote",
             sortMode: "remote",
+            dataLoader: false,
             paginationSize: 10,
             paginationInitialPage: 1,
             ajaxURL: "{{ url_for('admin.etl_data') }}",
             ajaxConfig: "GET",
-            placeholder: "Žiadne záznamy o prenose dát nie sú dostupné",
+            placeholder: "Žiadne záznamy o migrácii údajov nie sú dostupné",
+            langs:{
+                "default":{
+                    "pagination": {
+                        "first": "Prvá",
+                        "first_title": "Prvá strana",
+                        "last": "Posledná",
+                        "last_title": "Posledná strana",
+                        "prev": "Predchádzajúca",
+                        "prev_title": "Predchádzajúca strana",
+                        "next": "Ďalšia",
+                        "next_title": "Ďalšia strana",
+                        "all": "Všetky"
+                    }
+                },
+            },
             columns: [
                 {title: "ID", field: "id", sorter: "number", width: 60, headerFilter:"input", headerFilterFunc:"="},
                 {title: "Názov úlohy", field: "job_name", sorter: "string", headerFilter:"input"},
@@ -197,30 +242,49 @@
             }
         });
 
-        setInterval(function(){
+        setInterval(function() {
+            const autorefreshETLTable = document.getElementById('autorefresh_etl_table');
+            if (autorefreshETLTable && !autorefreshETLTable.checked) {
+                return;
+            }
             table.setData();
         }, 10000);
 
         const startETLBtn = document.getElementById('start-etl-btn');
         if (startETLBtn) {
             startETLBtn.addEventListener("click", function() {
-                fetch("{{ url_for('admin.run_etl_chain') }}", {
+                if (!confirm("Naozaj chcete spustiť migráciu údajov?")) {
+                    return;
+                }
+                const stageReloadAction = document.getElementById('stage_reload_action');
+                const dwhIncrementalAction = document.getElementById('dwh_incremental_action');
+
+                const stage_reload_action = !!(stageReloadAction && stageReloadAction.checked);
+                const dwh_incremental_action = !!(dwhIncrementalAction && dwhIncrementalAction.checked);
+
+                const url_params = new URLSearchParams({
+                    stage_reload: stage_reload_action,
+                    dwh_incremental: dwh_incremental_action
+                }).toString();
+
+                fetch("{{ url_for('admin.run_etl_chain') }}?" + url_params, {
                     method:"GET",
+                    data: {stage_reload_action: stage_reload_action, dwh_incremental_task: dwh_incremental_action},
                     headers: {"Content-Type": "application/json"}
                 })
                 .then(response => response.json())
                 .then(data => {
                     const error = data.hasOwnProperty("error");
                     if (error) {
-                        alert("Chyba pri spustení prenosu dát: " + data.error);
+                        alert("Chyba počas migrácie údajov: " + data.error);
                         return;
                     }
-                    const taskId = (data.hasOwnProperty("chain_task_id") ? data.chain_task_id : null);
-                    alert("Začal sa proces prenosu dát. ID úlohy: " + taskId);
+                    const taskId = (data.hasOwnProperty("task_id") ? data.task_id : null);
+                    alert("Začala sa migrácia údajov. ID úlohy: " + taskId);
                     table.setData();
                 })
                 .catch(error => {
-                    console.error("Chyba pri spustení prenosu dát:", error);
+                    console.error("Chyba počas migrácie údajov:", error);
                 });
             });
         }
@@ -248,7 +312,7 @@
         }
 
         const updateStatus = (elementId, data) => {
-            let msg = 'Unknown', className = 'bg-secondary';
+            let className = 'bg-secondary';
 
             if (data) {
                 const error = data.hasOwnProperty('error');
@@ -256,10 +320,8 @@
 
                 if (error) {
                     className = 'bg-danger';
-                    msg = 'Failed';
                 } else if (status) {
-                    msg = data.status;
-                    switch (msg.toLocaleLowerCase()) {
+                    switch (data.status.toLocaleLowerCase()) {
                         case 'running':
                             className = 'bg-primary';
                             break;
@@ -284,7 +346,6 @@
             if (element) {
                 element.className = 'badge';
                 element.classList.add(className);
-                element.textContent = element.textContent.split(':')[0] + ': ' + msg;
             }
         };
 
@@ -330,11 +391,27 @@
             paginationMode: "remote",
             filterMode: "remote",
             sortMode: "remote",
+            dataLoader: false,
             paginationSize: 10,
             paginationInitialPage: 1,
             ajaxURL: "{{ url_for('admin.users_data') }}",
             ajaxConfig:"GET",
             placeholder:"Žiadni používatelia nie sú k dispozícii",
+            langs:{
+                "default":{
+                    "pagination": {
+                        "first": "Prvá",
+                        "first_title": "Prvá strana",
+                        "last": "Posledná",
+                        "last_title": "Posledná strana",
+                        "prev": "Predchádzajúca",
+                        "prev_title": "Predchádzajúca strana",
+                        "next": "Ďalšia",
+                        "next_title": "Ďalšia strana",
+                        "all": "Všetky"
+                    }
+                },
+            },
             columns: [
                 {title:"ID", field:"id", sorter:"number", width:60, headerFilter:"input", headerFilterFunc:"="},
                 {title:"Email", field:"email", sorter:"string", headerFilter:"input"},
@@ -363,11 +440,27 @@
             paginationMode: "remote",
             filterMode: "remote",
             sortMode: "remote",
+            dataLoader: false,
             paginationSize: 10,
             paginationInitialPage: 1,
             ajaxURL: "{{ url_for('reports.reports_data') }}",
             ajaxConfig: "GET",
-            placeholder: "Nie sú k dispozícii žiadne reporty",
+            placeholder: "Nie sú k dispozícii žiadne správy",
+            langs:{
+                "default":{
+                    "pagination": {
+                        "first": "Prvá",
+                        "first_title": "Prvá strana",
+                        "last": "Posledná",
+                        "last_title": "Posledná strana",
+                        "prev": "Predchádzajúca",
+                        "prev_title": "Predchádzajúca strana",
+                        "next": "Ďalšia",
+                        "next_title": "Ďalšia strana",
+                        "all": "Všetky"
+                    }
+                },
+            },
             columns: [
                 {title: "ID", field: "id", sorter: "number", width: 60, headerFilter:"input", headerFilterFunc:"="},
                 {title: "Typ správy", field: "report_type", sorter: "string", headerFilter:"input"},
@@ -412,6 +505,10 @@
         });
 
         setInterval(function(){
+            const autorefreshReportsTable = document.getElementById('autorefresh_reports_table');
+            if (autorefreshReportsTable && !autorefreshReportsTable.checked) {
+                return;
+            }
             table.setData();
         }, 10000);
 
@@ -422,7 +519,7 @@
                 if (reportTypeFilter) {
                     const selectedOption = reportTypeFilter.options[reportTypeFilter.selectedIndex];
                     if (!selectedOption) {
-                        alert("Vyberte typ reportu.");
+                        alert("Vyberte typ správy");
                         return;
                     }
 
@@ -468,15 +565,15 @@
                     .then(data => {
                         const error = data.hasOwnProperty("error");
                         if (error) {
-                            alert("Chyba pri vytváraní reportu: " + data.error);
+                            alert("Chyba pri vytváraní správy: " + data.error);
                             return;
                         }
                         const taskId = (data.hasOwnProperty("task_id") ? data.task_id : null);
-                        alert("Začalo sa vytváranie reportu. ID úlohy: " + taskId);
+                        alert("Začalo sa vytváranie správy. ID úlohy: " + taskId);
                         table.setData();
                     })
                     .catch(error => {
-                        console.error("Chyba pri vytváraní reportu:", error);
+                        console.error("Chyba pri vytváraní správy:", error);
                     });
                 }
             });
@@ -578,21 +675,128 @@
 <script src="{{ url_for('static', filename='assets/plotly/plotly.min.js') }}"></script>
 <script src="{{ url_for('static', filename='assets/plotly/plotly-locale-sk.js') }}"></script>
 <script>
-    reportData = {{ report.result|tojson }};
+    const svg_download_icon = {
+        width: 1000,
+        height: 1000,
+        path: "M875 281.25V875a125 125 0 0 1-125 125v-62.5a62.5 62.5 0 0 0 62.5-62.5V281.25h-125A93.75 93.75 0 0 1 593.75 187.5V62.5H250a62.5 62.5 0 0 0-62.5 62.5v562.5H125V125a125 125 0 0 1 125-125h343.75zM0 927.5625a70.625 70.625 0 0 0 25.0625 51.4375q12.125 10.125 29.875 15.75q17.8125 5.6875 41.5625 5.6875 31.6875 0 53.625-9.875 22.1875-9.875 33.75-27.5a73.125 73.125 0 0 0 11.6875-41.0q0-21.0-8.4375-35.0a62.5 62.5 0 0 0-23.4375-22.3125 125 125 0 0 0-35.3125-13.125l-38.8125-9.0a62.5 62.5 0 0 1-25.3125-11.0.23125.23125 0 0 1-8.9375-18.6875q0-14.625 11.5-24.0 11.6875-9.5 32.0625-9.5 13.375 0 23.125 4.25a37.5 37.5 0 0 1 15.3125 11.3125.35.35 0 0 1 7.5 16.125h46.875a68.75 68.75 0 0 0-12.4375-35.375 75 75 0 0 0-31.25-25.625 112.5 112.5 0 0 0-48.75-9.5q-27.5 0-48.5 9.375-21.0625 9.3125-33.0 26.3125-11.875 17.0625-11.875 39.9375 0 18.875 7.6875 32.75t21.9375 22.9375q14.3125 8.9375 33.75 13.3125l38.625 9.0q19.375 4.5625 28.875 12.0625a24.375 24.375 0 0 1 9.5625 20.375.3125.3125 0 0 1-5.3125 18.125.35.35 0 0 1-16.0 12.0625q-10.4375 4.375-25.8125 4.375-11.0 0-20.0-2.5a50 50 0 0 1-15.5-7.1875.3625.3625 0 0 1-15.9375-24.0zm285.9375 68.125h59.5l82.9375-249.9375h-54.9375l-55.4375 196.125H315.625l-56.0625-196.125h-57.3125zm342.6875-205.8125q7.125 14.25 8.75 30.75h-48.5a50 50 0 0 0-6.0-15.5625.4375.4375 0 0 0-10.625-11.875.4375.4375 0 0 0-14.8125-7.875 62.5 62.5 0 0 0-18.75-2.75q-26.6875 0-41.5 18.875-14.6875 18.75-14.6875 53.125v31.0625q0 22.0 6.0625 38.5a56.25 56.25 0 0 0 19.0625 25.8125.54375.54375 0 0 0 32.375 9.125 62.5 62.5 0 0 0 28.5625-6.0625.41875.41875 0 0 0 17.0625-16.4375q5.625-10.25 5.625-22.75v-15.875h-51.4375v-36.875h98.5v49.875q0 18.125-6.0 34.375a81.25 81.25 0 0 1-18.3125 28.5625 87.5 87.5 0 0 1-30.9375 19.625q-18.5 6.9375-43.625 6.9375a125 125 0 0 1-47.0-8.25 90.625 90.625 0 0 1-33.375-23.5625 100 100 0 0 1-19.9375-36.25 156.25 156.25 0 0 1-6.5625-46.5625v-31.6875q0-33.75 12.4375-59.3125 12.625-25.375 36.4375-39.5625 23.9375-14.25 57.875-14.25q22.3125 0 39.6875 6.25 17.625 6.25 30.0 17.1875 12.5 11.0 19.625 25.4375",
+        transform: "matrix(1 0 0 -1 0 1000)"
+    };
+    const config = {
+        locale: 'sk',
+        responsive: true,
+        toImageButtonOptions: {
+            format: 'png',
+            filename: 'chart_png',
+            height: 500,
+            width: 700,
+            scale: 1,
+        },
+        modeBarButtonsToAdd: [
+            {
+                name: 'Uložiť ako SVG',
+                icon: svg_download_icon,
+                click: function(gd) {
+                    Plotly.downloadImage(gd, {
+                        format: 'svg',
+                        filename: 'chart_svg',
+                        height: 500,
+                        width: 700,
+                        scale: 1
+                    });
+                }
+            }
+        ],
+        modeBarButtonsToRemove: ['pan2d', 'select2d', 'lasso2d', 'resetScale2d'],
+        displaylogo: false,
+    };
+    let report_id = "{{ report.id }}";
+    let createdAt = "{{ report.ended_at }}";
+    let reportParametersData = {{ report_parameters|tojson }};
+    let reportData = {{ report.result|tojson }};
     function showReport() {
-        if (!reportData.hasOwnProperty('layout')) {
+        const reportDetails = document.getElementById('report-details');
+        if (!reportDetails) {
             return;
         }
-        const containerId = 'chart-container';
-        const container = document.getElementById(containerId);
-        if (!container) {
-            console.error(`Kontajner s ID "${containerId}" nenájdený.`);
-            return;
+        const reportId = document.getElementById('report-id');
+        const reportTitle = document.getElementById('report-title');
+        const reportType = document.getElementById('report-type');
+        const reportCreatedAt = document.getElementById('report-created-at');
+        const reportDateFilter = document.getElementById('report-date-filter');
+
+        if (reportId) {
+            reportId.textContent = report_id;
         }
-        reportData.layout.width = 400;
-        reportData.layout.height = 300;
-        Plotly.newPlot(containerId, reportData.data, reportData.layout)
+        if (reportTitle) {
+            reportTitle.textContent = (reportParametersData.hasOwnProperty('report_title') ? reportParametersData.report_title : '');
+        }
+        if (reportType) {
+            reportType.textContent = (reportParametersData.hasOwnProperty('report_type') ? reportParametersData.report_type : '');
+        }
+        if (reportCreatedAt) {
+            reportCreatedAt.textContent = createdAt;
+        }
+        if (reportParametersData.hasOwnProperty('filters')) {
+            if (reportDateFilter && reportParametersData.filters.hasOwnProperty('date_filter_type')) {
+                if (reportParametersData.filters.date_filter_type === 'date-range') {
+                    reportDateFilter.textContent = `${reportParametersData.filters.start_date_filter} - ${reportParametersData.filters.end_date_filter}`;
+                } else if (reportParametersData.filters.date_filter_type === 'month') {
+                    reportDateFilter.textContent = reportParametersData.filters.date_filter_value;
+                } else if (reportParametersData.filters.date_filter_type === 'quarter') {
+                    reportDateFilter.textContent = reportParametersData.filters.date_filter_value;
+                } else if (reportParametersData.filters.date_filter_type === 'year') {
+                    reportDateFilter.textContent = reportParametersData.filters.date_filter_value;
+                }
+            }
+            if (reportParametersData.filters.hasOwnProperty('report_subfilters')) {
+                for (let i = 0; i < reportParametersData.filters.report_subfilters.length; i++) {
+                    const subfilter = reportParametersData.filters.report_subfilters[i];
+                    const keys = Object.keys(subfilter);
+                    for (let j = 0; j < keys.length; j++) {
+                        const key = keys[j];
+                        const value = subfilter[key];
+                        const dt = document.createElement('dt');
+                        if (value.title.length > 0 && value.value.length > 0) {
+                            dt.className = 'col-sm-3';
+                            dt.textContent = value.title || 'Bez názvu';
+                            const dd = document.createElement('dd');
+                            dd.className = 'col-sm-9';
+                            dd.textContent = value.value || 'Bez hodnoty';
+                            reportDetails.appendChild(dt);
+                            reportDetails.appendChild(dd);
+                        }
+                    }
+
+                }
+            }
+        }
+
+        report_data_type = (reportParametersData && reportParametersData.length > 0 && reportParametersData.hasOwnProperty('report_data_type') ? reportParametersData.report_data_type : 'diagram');
+        if (report_data_type === 'diagram') {
+            report_diagram_type = (reportParametersData && reportParametersData.length > 0 && reportParametersData.hasOwnProperty('report_diagram_type') ? reportParametersData.report_diagram_type : 'bar');
+            if (!reportData.hasOwnProperty('layout')) {
+                return;
+            }
+            const containerId = 'chart-container';
+            const container = document.getElementById(containerId);
+            if (!container) {
+                console.error(`Kontajner s ID "${containerId}" nenájdený.`);
+                return;
+            }
+
+            Plotly.newPlot(containerId, reportData.data, reportData.layout, config)
+            .then(() => {
+                Plotly.relayout(containerId, {autosize: true});
+            })
             .catch(error => console.error(`Chyba pri vykresľovaní "${containerId}":`, error));
+        } else {
+            const containerId = 'table-container';
+            const container = document.getElementById(containerId);
+            if (!container) {
+                console.error(`Kontajner s ID "${containerId}" nenájdený.`);
+                return;
+            }
+        }
     }
     document.addEventListener('DOMContentLoaded', () => {
         showReport();

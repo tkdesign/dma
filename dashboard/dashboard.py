@@ -6,6 +6,7 @@ from flask_login import current_user, login_required
 from sqlalchemy import create_engine, text
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import gc
 from celeryconfig import PROD_DB_URI, DWH_DB_URI
 
@@ -178,7 +179,7 @@ def get_period_revenue():
 
     range_start = range_end = None
 
-    if (filter_type == "range"):
+    if filter_type == "range":
         range_start = request.args.get("filter_value_start")
         range_end = request.args.get("filter_value_end")
 
@@ -188,8 +189,36 @@ def get_period_revenue():
         revenue_df = pd.read_sql_query(text(query), conn)
 
     try:
-        fig = px.bar(revenue_df, x='period', y='total_revenue', title='Príjmy')
-        fig.update_layout(xaxis=dict(tickmode="linear", dtick=1, title="Period", type="category"), yaxis=dict(title="Príjmy"), margin=dict(l=40, r=40, t=40, b=40))
+        bar_trace = go.Bar(
+            x=revenue_df['period'],
+            y=revenue_df['total_revenue'],
+            name='Výnosy',
+            # marker=dict(color='rgb(55, 83, 109)')
+        )
+
+        data = [bar_trace,]
+
+        layout = go.Layout(
+            title='Výnos',
+            height=400,
+            grid=dict(rows=1, columns=1, pattern='independent'),
+            xaxis=dict(
+                tickmode="linear",
+                dtick=1,
+                title="Obdobie",
+                type="category",
+                domain=[0, 1]
+            ),
+            yaxis=dict(
+                title="Výnos",
+                domain=[0, 1],
+            ),
+            autosize=True,
+        )
+
+        fig = go.Figure(data=data, layout=layout)
+
+
     except Exception as e:
         return jsonify({})
 
@@ -210,7 +239,7 @@ def get_orders_heatmap():
 
     range_start = range_end = None
 
-    if (filter_type == "range"):
+    if filter_type == "range":
         range_start = request.args.get("filter_value_start")
         range_end = request.args.get("filter_value_end")
 
@@ -221,25 +250,48 @@ def get_orders_heatmap():
 
     pivot_table = heatmap_data.pivot(index="time_of_day", columns="day_of_week", values="order_count").fillna(0)
 
+    day_order_labels = ["Pondelok", "Utorok", "Streda", "Štvrtok", "Piatok", "Sobota", "Nedeľa"]
     day_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     pivot_table = pivot_table.reindex(columns=day_order)
 
+    time_order_labels = ["Ráno", "Popoludnie", "Večer", "Noc"]
     time_order = ["Morning", "Afternoon", "Evening", "Night"]
     pivot_table = pivot_table.reindex(index=time_order)
 
     try:
-        fig = px.imshow(
-            pivot_table,
-            labels=dict(x="", y="", color="Počet objednávok"),
-            title="Rozdelenie objednávok",
-            color_continuous_scale="RdBu_r"
+        heatmap_trace = go.Heatmap(
+            z=pivot_table.values,
+            x=day_order,
+            y=time_order,
+            colorscale="RdBu_r",
+            colorbar=dict(title="Počet objednávok")
         )
 
-        fig.update_layout(
-            xaxis=dict(tickangle=45, dtick=1),
-            yaxis=dict(title="", dtick=1),
-            #margin=dict(l=40, r=40, t=40, b=40)
+        data = [heatmap_trace]
+
+        layout = go.Layout(
+            title="Rozdelenie objednávok",
+            height=400,
+            xaxis=dict(
+                title="",
+                tickangle=45,
+                tickvals=day_order,
+                ticktext=day_order_labels,
+                dtick=1,
+                domain=[0, 1],
+            ),
+            yaxis=dict(
+                title="",
+                dtick=1,
+                tickvals=time_order,
+                ticktext=time_order_labels,
+                domain=[0, 1],
+                autorange="reversed",
+            ),
+            autosize=True
         )
+
+        fig = go.Figure(data=data, layout=layout)
     except Exception as e:
         return jsonify({})
 
@@ -261,7 +313,7 @@ def get_gender_distribution():
 
     range_start = range_end = None
 
-    if (filter_type == "range"):
+    if filter_type == "range":
         range_start = request.args.get("filter_value_start")
         range_end = request.args.get("filter_value_end")
 
@@ -269,9 +321,28 @@ def get_gender_distribution():
 
     with dwh_engine.connect() as conn:
         gender_df = pd.read_sql_query(text(query), conn)
+        gender_df['gender'].fillna('neznámy')
 
     try:
-        fig = px.pie(gender_df, values='customers_count', names='gender', title='Rozdelenie podľa pohlavia')
+        pie_trace = go.Pie(
+            labels=gender_df['gender'],
+            values=gender_df['customers_count'],
+            name="Rozdelenie zákazníkov podľa pohlavia",
+            textinfo="label+percent",
+            hoverinfo="label+value+percent",
+            domain=dict(row=0, column=0)
+        )
+
+        data = [pie_trace]
+
+        layout = go.Layout(
+            title="Rozdelenie zákazníkov podľa pohlavia",
+            height=400,
+            grid=dict(rows=1, columns=1, pattern='independent'),
+            autosize=True
+        )
+
+        fig = go.Figure(data=data, layout=layout)
     except Exception as e:
         return jsonify({})
 
@@ -293,7 +364,7 @@ def get_age_distribution():
 
     range_start = range_end = None
 
-    if (filter_type == "range"):
+    if filter_type == "range":
         range_start = request.args.get("filter_value_start")
         range_end = request.args.get("filter_value_end")
 
@@ -303,95 +374,35 @@ def get_age_distribution():
         age_df = pd.read_sql_query(text(query), conn)
 
     try:
-        fig = px.bar(age_df, x='age_range', y='avg_order_value', title='Priemerná suma objednávky podľa vekového rozpätia')
+        bar_trace = go.Bar(
+            x=age_df['age_range'],
+            y=age_df['avg_order_value'],
+            name='Priemerná suma objednávky',
+            # marker=dict(color='rgb(55, 83, 109)')
+        )
+
+        data = [bar_trace,]
+
+        layout = go.Layout(
+            title='Priemerná suma objednávky podľa veku zákazníkov',
+            height=400,
+            grid=dict(rows=1, columns=1, pattern='independent'),
+            xaxis=dict(
+                title="Vek",
+                domain=[0, 1]
+            ),
+            yaxis=dict(
+                title="Priemerná suma objednávky",
+                domain=[0, 1],
+            ),
+            autosize=True,
+        )
+
+        fig = go.Figure(data=data, layout=layout)
     except Exception as e:
         return jsonify({})
 
     del age_df
-    gc.collect()
-
-    return fig.to_json()
-
-@dashboard_blueprint.route('/get-gender-quartile-distribution', methods=['GET'])
-@login_required
-def get_gender_quartile_distribution():
-    filter_type = request.args.get("filter_type")
-    filter_value = request.args.get("filter_value")
-
-    current_date = datetime.datetime.now()
-
-    filter_type = "year" if filter_type is None else filter_type
-    filter_value = str(current_date.year) if filter_value is None else filter_value
-
-    range_start = range_end = None
-
-    if (filter_type == "range"):
-        range_start = request.args.get("filter_value_start")
-        range_end = request.args.get("filter_value_end")
-
-    query = apply_period_filter(dashboard_queries["gender_quartile_distribution"], current_date, filter_type, filter_value, range_start, range_end)
-
-    with dwh_engine.connect() as conn:
-        quartile_df = pd.read_sql_query(text(query), conn)
-
-    try:
-        fig = px.bar(
-            quartile_df,
-            x="percentage",
-            y="quartile",
-            color="gender",
-            orientation="h",
-            title="Pohlavné rozdelenie podľa platobného kvartilu",
-            labels={"quartile": "Quartile", "percentage": "Percentage", "gender": "Gender"},
-            color_discrete_map={"Male": "teal", "Female": "coral", "Unknown": "gray"}
-        )
-    except Exception as e:
-        return jsonify({})
-
-    fig.update_layout(
-        barmode="stack",
-        xaxis_title="Percentage",
-        yaxis_title="Quartile"
-    )
-
-    del quartile_df
-    gc.collect()
-
-    return fig.to_json()
-
-@dashboard_blueprint.route('/get-order-status-heatmap', methods=['GET'])
-@login_required
-def get_order_status_heatmap():
-    filter_type = request.args.get("filter_type")
-    filter_value = request.args.get("filter_value")
-
-    current_date = datetime.datetime.now()
-
-    filter_type = "year" if filter_type is None else filter_type
-    filter_value = str(current_date.year) if filter_value is None else filter_value
-
-    range_start = range_end = None
-
-    if (filter_type == "range"):
-        range_start = request.args.get("filter_value_start")
-        range_end = request.args.get("filter_value_end")
-
-    query = apply_period_filter(dashboard_queries["order_status_heatmap"], current_date, filter_type, filter_value, range_start, range_end)
-
-    with dwh_engine.connect() as conn:
-        heatmap_df = pd.read_sql_query(text(query), conn)
-
-    try:
-        heatmap_pivot = heatmap_df.pivot(index="status", columns="month", values="orders_count").fillna(0)
-        fig = px.imshow(
-            heatmap_pivot,
-            labels=dict(x="Month", y="Order Status", color="Počet objednávok"),
-            title="Teplotná mapa stavu objednávok"
-        )
-    except Exception as e:
-        return jsonify({})
-
-    del heatmap_df, heatmap_pivot
     gc.collect()
 
     return fig.to_json()

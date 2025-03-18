@@ -3,34 +3,20 @@
     <div class="container-fluid">
         <h1>Váš profil</h1>
         <div class="col-4" id="view-profile-container">
-            <table class="table table-borderless mt-3">
-                <tbody>
-                    <tr>
-                        <th scope="row">Email:</th>
-                        <td>{{ current_user.email }}</td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Rola:</th>
-                        <td>{% if current_user.is_admin %} Správca {% else %} Používateľ {% endif %}</td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Meno:</th>
-                        <td>{{ current_user.first_name }}</td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Priezvisko:</th>
-                        <td>{{ current_user.last_name }}</td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Oddelenie:</th>
-                        <td>{{ current_user.department }}</td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Pozícia:</th>
-                        <td>{{ current_user.occupation }}</td>
-                    </tr>
-                </tbody>
-            </table>
+            <dl class="row mb-0">
+                <dt class="col-sm-3">Email</dt>
+                <dd class="col-sm-9">{{ current_user.email }}</dd>
+                <dt class="col-sm-3">Rola</dt>
+                <dd class="col-sm-9">{% if current_user.is_admin() %} Správca {% else %} Používateľ {% endif %}</dd>
+                <dt class="col-sm-3">Meno</dt>
+                <dd class="col-sm-9">{{ current_user.first_name }}</dd>
+                <dt class="col-sm-3">Priezvisko</dt>
+                <dd class="col-sm-9">{{ current_user.last_name }}</dd>
+                <dt class="col-sm-3">Oddelenie</dt>
+                <dd class="col-sm-9">{{ current_user.department }}</dd>
+                <dt class="col-sm-3">Pozícia</dt>
+                <dd class="col-sm-9">{{ current_user.occupation }}</dd>
+            </dl>
             <a href="#" class="btn btn-primary mt-3" id="edit-profile-btn">Upraviť</a>
         </div>
         <div class="row d-none" id="edit-profile-container">

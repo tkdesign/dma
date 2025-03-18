@@ -95,26 +95,26 @@ def reports_index():
                 for subfilter_key, subfilter_value in value["subfilters"].items():
                     report_types[key]["subfilters"][subfilter_key] = {"title": subfilter_value["title"]}
 
-    return render_template('reports/reports.html', title='DMA - Reporty', page='reports', months=months, quarters=quarters, years=years, report_types=report_types)
+    return render_template('reports/reports.html', title='DMA - Správy', page='reports', months=months, quarters=quarters, years=years, report_types=report_types)
 
 @reports_blueprint.route('/get_subfilter_options', methods=['POST'])
 @login_required
 def get_subfilter_options():
     if not current_user.is_authenticated:
-        return jsonify({"error": "Neautorizovaný Prístup."}), 403
+        return jsonify({"error": "Neautorizovaný prístup"}), 403
 
     current_date = datetime.datetime.now()
     report_type = request.json.get('report_type')
     subfilter = request.json.get('subfilter')
 
     if not report_type or not subfilter:
-        return jsonify({"error": "Missing required parameters"}), 200
+        return jsonify({"error": "Chýbajúce povinné parametre"}), 200
 
     if report_type not in reports_queries:
-        return jsonify({"error": "Invalid report type"}), 200
+        return jsonify({"error": "Neplatný typ správy"}), 200
 
     if subfilter and subfilter not in reports_queries[report_type]["subfilters"]:
-        return jsonify({"error": "Invalid subfilter"}), 200
+        return jsonify({"error": "Neplatný podfilter"}), 200
 
     menu_query = reports_queries[report_type]["subfilters"][subfilter].get("menu_query")
     date_filter_type = request.json.get("date_filter_type")
@@ -128,7 +128,7 @@ def get_subfilter_options():
     query = apply_period_filter_to_dim(menu_query, date_filter_type, date_filter_value, range_start, range_end)
 
     if not menu_query:
-        return jsonify({"error": "No menu query"}), 200
+        return jsonify({"error": "Chýba dotaz pre menu"}), 200
 
     with dwh_engine.connect() as conn:
         elements = conn.execute(text(query)).fetchall()
@@ -140,18 +140,19 @@ def get_subfilter_options():
 @login_required
 def create_report():
     if not current_user.is_authenticated:
-        return jsonify({"error": "Neautorizovaný Prístup."}), 403
+        return jsonify({"error": "Neautorizovaný prístup"}), 403
 
     report_type = request.json.get('report_type')
     subfilters = request.json.get('subfilters')
 
     if not report_type:
-        return jsonify({"error": "Missing required parameters"}), 200
+        return jsonify({"error": "Chýbajúce povinné parametre"}), 200
 
     if report_type not in reports_queries:
-        return jsonify({"error": "Invalid report type"}), 200
+        return jsonify({"error": "Neplatný typ správy"}), 200
 
     where_clause = []
+    report_subfilters = []
 
     for subfilter_key, subfilter_value  in subfilters.items():
         if subfilter_key in reports_queries[report_type]["subfilters"]:
@@ -160,6 +161,9 @@ def create_report():
                     where_clause.append(f"dp.market_group = '{subfilter_value}'")
                 elif subfilter_key == "market_subgroup":
                     where_clause.append(f"dp.market_subgroup = '{subfilter_value}'")
+                elif subfilter_key == "market_gender":
+                    where_clause.append(f"dp.market_gender = '{subfilter_value}'")
+            report_subfilters.append({subfilter_key: {'title': reports_queries[report_type]["subfilters"][subfilter_key]['title'],'value': subfilter_value}})
 
     if len(where_clause) == 0:
         where_clause.append("1 = 1")
@@ -187,7 +191,18 @@ def create_report():
     parameters = {
         "user_id": current_user.id,
         "report_type": report_type,
+        "report_title": reports_queries[report_type]["title"],
+        "report_data_type": reports_queries[report_type]["data_type"] if "data_type" in reports_queries[report_type] else "diagram",
+        "report_diagram_type": reports_queries[report_type]["diagram_type"] if "diagram_type" in reports_queries[report_type] else "bar",
+        "show_diagram_table": reports_queries[report_type]["show_diagram_table"] if "show_diagram_table" in reports_queries[report_type] else True,
         "query": query,
+        "filters": {
+            "date_filter_type": date_filter_type,
+            "date_filter_value": date_filter_value,
+            "range_start": range_start,
+            "range_end": range_end,
+            "report_subfilters": report_subfilters
+        }
     }
 
     task = build_report_task.delay(parameters)
@@ -198,7 +213,7 @@ def create_report():
 @login_required
 def reports_data():
     if not current_user.is_authenticated:
-        return jsonify({"error": "Neautorizovaný Prístup."}), 403
+        return jsonify({"error": "Neautorizovaný prístup"}), 403
 
     try:
         page = int(request.args.get('page', 1))
@@ -230,6 +245,9 @@ def reports_data():
             i += 1
         else:
             break
+
+    if not current_user.is_admin():
+        query = query.filter(Report.user_id == current_user.id)
 
     for filter_param in filter_params:
         field = filter_param.get('field')
@@ -263,8 +281,8 @@ def reports_data():
             "report_type": report.report_type,
             "parameters": report.parameters,
             "result": report.result,
-            "started_at": report.started_at,
-            "ended_at": report.ended_at,
+            "started_at": report.started_at.isoformat() if report.started_at else None,
+            "ended_at": report.ended_at.isoformat() if report.ended_at else None,
             "status": report.status,
             "message": report.message
         })
@@ -277,12 +295,23 @@ def reports_data():
 @reports_blueprint.route('/view_report/<int:report_id>', methods=['GET'])
 @login_required
 def view_report(report_id):
-    if not current_user.is_admin():
-        return redirect(url_for('dashboard.dashboard_index'))
-
     report = Report.query.get(report_id)
 
     if report:
-        return render_template('reports/report.html', title='DMA - View Report', page='view_report', report=report)
+        if report.user_id != current_user.id:
+            return redirect(url_for('dashboard.dashboard_index'))
+
+        created_date = report.ended_at.strftime("%Y-%m-%d %H:%M:%S") if report.ended_at else None
+
+        # report_parameters = report.parameters.copy()
+        # report_parameters.pop('query', None)
+
+        report_data_type = report.parameters.get("report_data_type") if report.parameters.get("report_data_type") else "diagram"
+        # report_diagram_type = report_parameters.get("report_diagram_type") if report_parameters.get("report_diagram_type") else "bar"
+
+        if report_data_type == "table":
+            return render_template('reports/report_table.html', title='DMA - Správa', page='view_report', report=report, report_parameters=report.parameters)
+        elif report_data_type == "diagram":
+            return render_template('reports/report.html', title='DMA - Správa', page='view_report', report=report, report_parameters=report.parameters)
 
     return redirect(url_for('reports.reports_index'))

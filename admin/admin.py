@@ -175,7 +175,7 @@ def user_update(user_id):
 def etl_control():
     if not current_user.is_admin():
         return redirect(url_for('dashboard.dashboard_index'))
-    return render_template('admin/etl_control.html', title='DMA - Prenos dát', page='etl_control')
+    return render_template('admin/etl_control.html', title='DMA - Migrácia údajov', page='etl_control')
 
 @admin_blueprint.route('/etl_data', methods=['GET'])
 @login_required
@@ -262,11 +262,27 @@ def etl_data():
 def run_etl_chain():
     if current_user.is_admin():
         if is_any_task_running():
-            return jsonify({"error": "Reťazec prenosu dát už beží."}), 200
-        result = chain(stage_reload_task.s(), dwh_incremental_task.s()).apply_async()
-        return jsonify({"chain_task_id": result.id, "message": "Reťazec prenosu dát bol spustený."}), 200
+            return jsonify({"error": "Migrácia údajov už prebieha"}), 200
+        stage_reload = request.args.get('stage_reload')
+        dwh_incremental = request.args.get('dwh_incremental')
+
+        if stage_reload is None or dwh_incremental is None:
+            return jsonify({"error": "Neplatné parametre"}), 200
+
+        if stage_reload == 'true' and dwh_incremental == 'true':
+            result = chain(stage_reload_task.s(), dwh_incremental_task.s()).apply_async()
+            return jsonify({"taskId": result.id, "message": "Spustila sa úplná migrácia údajov"}), 200
+        elif stage_reload == 'true':
+            # result = stage_reload_task.apply_async()
+            result = stage_reload_task.delay()
+            return jsonify({"task_id": result.id, "message": "Spustila sa migrácia da´t do dočasného úložiska"}), 200
+        elif dwh_incremental == 'true':
+            # result = dwh_incremental_task.apply_async()
+            result = dwh_incremental_task.delay()
+            return jsonify({"task_id": result.id, "message": "Spustila sa migrácia údajov do dátového skladu"}), 200
+        return jsonify({"error": "Musíte zvoliť aspoň jednu z úloh"}), 200
     else:
-        return jsonify({"error": "Neoprávnený Prístup"}), 403
+        return jsonify({"error": "Neoprávnený prístup"}), 403
 
 @admin_blueprint.route('/revoke_task', methods=['POST'])
 @login_required
