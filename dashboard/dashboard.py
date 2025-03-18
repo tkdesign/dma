@@ -187,6 +187,7 @@ def get_period_revenue():
 
     with dwh_engine.connect() as conn:
         revenue_df = pd.read_sql_query(text(query), conn)
+        revenue_df['total_revenue'] = revenue_df['total_revenue'].round(2)
 
     try:
         bar_trace = go.Bar(
@@ -321,7 +322,7 @@ def get_gender_distribution():
 
     with dwh_engine.connect() as conn:
         gender_df = pd.read_sql_query(text(query), conn)
-        gender_df['gender'].fillna('neznámy')
+        gender_df['gender'] = gender_df['gender'].fillna('Neuvedené')
 
     try:
         pie_trace = go.Pie(
@@ -372,6 +373,7 @@ def get_age_distribution():
 
     with dwh_engine.connect() as conn:
         age_df = pd.read_sql_query(text(query), conn)
+        age_df['age_range'] = age_df['age_range'].fillna('Neuvedené')
 
     try:
         bar_trace = go.Bar(

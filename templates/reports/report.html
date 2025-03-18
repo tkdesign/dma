@@ -2,34 +2,45 @@
 {% block content %}
     <div class="container-fluid">
         <h1>Správa</h1>
-        <div class="row mt-4">
-            <div class="col">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">Detaily</h5>
-                    </div>
-                    <div class="card-body">
-                        <dl class="row mb-0" id="report-details">
-                            <dt class="col-sm-3">#</dt>
-                            <dd class="col-sm-9" id="report-id"></dd>
-                            <dt class="col-sm-3">Názov</dt>
-                            <dd class="col-sm-9" id="report-title"></dd>
-                            <dt class="col-sm-3">Typ</dt>
-                            <dd class="col-sm-9" id="report-type"></dd>
-                            <dt class="col-sm-3">Vytvorené</dt>
-                            <dd class="col-sm-9" id="report-created-at"></dd>
-                            <dt class="col-sm-3">Obdobie</dt>
-                            <dd class="col-sm-9" id="report-date-filter"></dd>
-                        </dl>
-                    </div>
+        <div class="row">
+            <div class="col-3">
+                <div class="mb-3">
+                    <button id="generate-pdf-btn" class="btn btn-primary">
+                        <i class="bi bi-file-earmark-pdf"></i> Generovať PDF
+                    </button>
                 </div>
             </div>
         </div>
-        <div class="row my-4">
-            <div class="col">
-                <div class="card text-center">
-                    <div class="card-body card-with-diagram-body align-content-center">
-                        <div id="chart-container" class="chart-container"></div>
+        <div id="report-container">
+            <div class="row mt-4">
+                <div class="col">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Detaily</h5>
+                        </div>
+                        <div class="card-body">
+                            <dl class="row mb-0" id="report-details">
+                                <dt class="col-sm-3">#</dt>
+                                <dd class="col-sm-9" id="report-id"></dd>
+                                <dt class="col-sm-3">Názov</dt>
+                                <dd class="col-sm-9" id="report-title"></dd>
+                                <dt class="col-sm-3">Typ</dt>
+                                <dd class="col-sm-9" id="report-type"></dd>
+                                <dt class="col-sm-3">Vytvorené</dt>
+                                <dd class="col-sm-9" id="report-created-at"></dd>
+                                <dt class="col-sm-3">Obdobie</dt>
+                                <dd class="col-sm-9" id="report-date-filter"></dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row my-4">
+                <div class="col">
+                    <div class="card text-center">
+                        <div class="card-body card-with-diagram-body align-content-center">
+                            <div id="chart-container" class="chart-container"></div>
+                        </div>
                     </div>
                 </div>
             </div>

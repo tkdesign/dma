@@ -1,6 +1,7 @@
 import datetime
+import io
 
-from flask import Blueprint, request, jsonify, render_template, redirect, url_for
+from flask import Blueprint, request, jsonify, render_template, redirect, url_for, Response
 from flask_login import current_user, login_required
 from sqlalchemy import text, create_engine
 
@@ -10,6 +11,7 @@ from dashboard.dashboard import apply_period_filter
 from models import Report
 from reportsconfig import filter_queries, reports_queries
 from tasks import build_report_task
+from playwright.sync_api import sync_playwright
 
 reports_blueprint = Blueprint('reports', __name__)
 
@@ -315,3 +317,49 @@ def view_report(report_id):
             return render_template('reports/report.html', title='DMA - Správa', page='view_report', report=report, report_parameters=report.parameters)
 
     return redirect(url_for('reports.reports_index'))
+
+@reports_blueprint.route('/generate-pdf', methods=['POST'])
+@login_required
+def generate_pdf():
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Neautorizovaný prístup"}), 403
+
+    report_id = request.json.get('report_id')
+
+    if not report_id:
+        return jsonify({"error": "Chýbajúce povinné parametre"}), 200
+
+    report = Report.query.get(report_id)
+
+    if report:
+        if report.user_id != current_user.id:
+            return redirect(url_for('dashboard.dashboard_index'))
+
+        html_content = render_template('reports/report_pdf.html', title='DMA - Správa', page='pdf_report', report=report, report_parameters=report.parameters)
+
+        pdf_buffer = io.BytesIO()
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True, args=['--no-sandbox'])
+            page = browser.new_page()
+            page.set_viewport_size({"width": 768, "height": 1024})
+
+            page.set_content(html_content, wait_until='networkidle')
+
+            page.emulate_media(media="print")
+            pdf_data = page.pdf(
+                format='A4',
+                print_background=True,
+                margin={'top': '20mm', 'right': '20mm', 'bottom': '20mm', 'left': '20mm'},
+                scale=0.8
+            )
+            pdf_buffer.write(pdf_data)
+            pdf_buffer.seek(0)
+            browser.close()
+
+        return Response(
+            pdf_buffer.getvalue(),
+            mimetype='application/pdf',
+            headers={'Content-Disposition': 'attachment; filename=report.pdf'}
+        )
+
+    return jsonify({"error": "Správa neexistuje"}), 200
