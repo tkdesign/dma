@@ -1,13 +1,38 @@
 {% extends "user/layout.html" %}
 {% block content %}
     <div class="container-fluid">
-        <h1>Report</h1>
-        <div class="row my-4">
-{#            <div class="col-md-3">#}
-                <div class="card text-center">
-                    <div class="card-body align-content-center" id="chart-container"></div>
+        <h1>Správa</h1>
+        <div class="row mt-4">
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Detaily</h5>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row mb-0" id="report-details">
+                            <dt class="col-sm-3">#</dt>
+                            <dd class="col-sm-9" id="report-id"></dd>
+                            <dt class="col-sm-3">Názov</dt>
+                            <dd class="col-sm-9" id="report-title"></dd>
+                            <dt class="col-sm-3">Typ</dt>
+                            <dd class="col-sm-9" id="report-type"></dd>
+                            <dt class="col-sm-3">Vytvorené</dt>
+                            <dd class="col-sm-9" id="report-created-at"></dd>
+                            <dt class="col-sm-3">Obdobie</dt>
+                            <dd class="col-sm-9" id="report-date-filter"></dd>
+                        </dl>
+                    </div>
                 </div>
-{#            </div>#}
+            </div>
+        </div>
+        <div class="row my-4">
+            <div class="col">
+                <div class="card text-center">
+                    <div class="card-body card-with-diagram-body align-content-center">
+                        <div id="chart-container" class="chart-container"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 {% endblock %}

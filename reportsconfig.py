@@ -109,65 +109,33 @@ dashboard_queries = {
     """,
     "age_distribution": """
     SELECT 
-        FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, dc.birthdate)) / 10) * 10 AS age_range,
-        AVG(fo.paid_tax_incl) AS avg_order_value
-    FROM fact_order_line fo
-    JOIN dim_customer dc ON fo.customer_sk = dc.customer_key
-    WHERE fo.date_sk IN (SELECT date_key FROM dim_date WHERE {filter}) AND {valid_customer_filter}
-    GROUP BY age_range
-    ORDER BY age_range;
-    """,
-    "gender_quartile_distribution": """
-    WITH quartiles AS (
-        SELECT 
-            fo.customer_sk,
-            dc.gender,
-            fo.paid_tax_incl,
-            NTILE(4) OVER (ORDER BY fo.paid_tax_incl DESC) AS quartile
+            CASE 
+                WHEN dc.birthdate IS NULL THEN 'Neuvedené'
+                WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, dc.birthdate)) < 0 THEN 'Neuvedené'
+                ELSE FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, dc.birthdate)) / 10) * 10 || '-' || 
+                     (FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, dc.birthdate)) / 10) * 10 + 9)
+            END AS age_range,
+            AVG(fo.paid_tax_incl) AS avg_order_value
         FROM fact_order_line fo
         JOIN dim_customer dc ON fo.customer_sk = dc.customer_key
         WHERE fo.date_sk IN (SELECT date_key FROM dim_date WHERE {filter}) AND {valid_customer_filter}
-    ),
-    quartile_gender_count AS (
-        SELECT 
-            quartile,
-            gender,
-            COUNT(*) AS count
-        FROM quartiles
-        GROUP BY quartile, gender
-    ),
-    quartile_totals AS (
-        SELECT 
-            quartile,
-            SUM(count) AS total_count
-        FROM quartile_gender_count
-        GROUP BY quartile
-    )
-    SELECT 
-        qgc.quartile,
-        qgc.gender,
-        ROUND(qgc.count * 100.0 / qt.total_count, 2) AS percentage
-    FROM quartile_gender_count qgc
-    JOIN quartile_totals qt ON qgc.quartile = qt.quartile
-    ORDER BY qgc.quartile, qgc.gender;
-    """,
-    "order_status_heatmap": """
-    SELECT
-        dos.current_state AS status,
-        dd.month,
-        COUNT(foh.orderid_bk) AS orders_count
-    FROM fact_order_history foh
-    JOIN dim_order_state dos ON foh.orderstate_sk = dos.orderstate_key
-    JOIN dim_date dd ON foh.date_sk = dd.date_key
-    WHERE {filter} AND {valid_order_state_filter}
-    GROUP BY dos.current_state, dd.month
-    ORDER BY dd.month;
+        GROUP BY 
+            CASE 
+                WHEN dc.birthdate IS NULL THEN 'Neuvedené'
+                WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, dc.birthdate)) < 0 THEN 'Neuvedené'
+                ELSE FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, dc.birthdate)) / 10) * 10 || '-' || 
+                     (FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, dc.birthdate)) / 10) * 10 + 9)
+            END
+        ORDER BY age_range;
     """,
 }
 
 reports_queries = {
     "gender_distribution": {
-        "title": "Gender distribution",
+        "title": "Rozdelenie zákazníkov podľa pohlavia",
+        "data_type": "diagram",
+        "diagram_type": "bar",
+        "show_diagram_table": True,
         "query": """
         SELECT 
             dc.gender, 
@@ -178,7 +146,10 @@ reports_queries = {
         """,
     },
     "age_distribution": {
-        "title": "Age distribution",
+        "title": "Priemerná suma objednávky podľa veku zákazníkov",
+        "data_type": "diagram",
+        "diagram_type": "pie",
+        "show_diagram_table": True,
         "query": """
         SELECT 
             FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, dc.birthdate)) / 10) * 10 AS age_range,
@@ -191,7 +162,10 @@ reports_queries = {
         """
     },
     "product_group_revenue": {
-        "title": "Group revenue",
+        "title": "Výnosy z marketingových kampaní",
+        "data_type": "diagram",
+        "diagram_type": "bar",
+        "show_diagram_table": True,
         "query": """
         SELECT
             TO_CHAR(d.date, '{date_format}') AS period,
@@ -208,7 +182,7 @@ reports_queries = {
         """,
         "subfilters": {
             "market_group": {
-                "title": "Group",
+                "title": "Marketingová kampaň",
                 "menu_query": """
                 SELECT market_group
                 FROM dim_product p
@@ -217,7 +191,7 @@ reports_queries = {
                 """
             },
             "market_subgroup": {
-                "title": "Subgroup",
+                "title": "Marketingová podkampaň",
                 "menu_query": """
                 SELECT market_subgroup
                 FROM dim_product p
@@ -228,12 +202,27 @@ reports_queries = {
         }
     },
     "product_gender_revenue": {
-        "title": "Product gender revenue",
+        "title": "Výnosy podľa rodovej kategórie tovaru",
+        "data_type": "diagram",
+        "diagram_type": "bar",
+        "show_diagram_table": True,
         "query": """
+        SELECT
+            TO_CHAR(d.date, '{date_format}') AS period,
+            SUM(fo.amount_tax_incl) AS total_revenue
+        FROM fact_order_line fo
+        JOIN dim_date d ON fo.date_sk = d.date_key
+        JOIN dim_product dp ON fo.product_sk = dp.product_key
+        WHERE {filter} AND {valid_product_filter}
+        AND (
+            {group_filter}
+        )
+        GROUP BY period
+        ORDER BY period;
         """,
         "subfilters": {
             "market_gender": {
-                "title": "Gender",
+                "title": "Rodová kategória",
                 "menu_query": """
                 SELECT market_gender
                 FROM dim_product p

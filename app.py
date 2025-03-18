@@ -33,7 +33,7 @@ def home():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard.dashboard_index'))
     else:
-        return render_template('index.html', title='DMA - Aplikácia pre správu ecommerce dát ')
+        return render_template('index.html', title='DMA - Aplikácia pre správu ecommerce dát')
 
 @app.errorhandler(404)
 def page_not_found(e):

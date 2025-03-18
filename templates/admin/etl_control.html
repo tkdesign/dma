@@ -1,35 +1,53 @@
 {% extends "user/layout.html" %}
 {% block content %}
 <div class="container-fluid">
-    <h1>Riadenie procesu prenosu dát</h1>
+    <h1>Migrácia údajov</h1>
 
     <nav class="navbar navbar-expand-lg navbar-light bg-light mb-3">
         <div class="container-fluid">
-            <a class="navbar-brand" href="#">Panel nástrojov</a>
+{#            <a class="navbar-brand" href="#">Panel nástrojov</a>#}
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Zobraziť panel">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0 gap-2">
                     <li class="nav-item">
-                        <button id="start-etl-btn" class="btn btn-primary">Spustiť prenos dát</button>
+                        <button id="start-etl-btn" class="btn btn-danger">Spustiť</button>
+                    </li>
+                    <li class="nav-item d-flex align-items-center">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="stage_reload_action" checked="checked">
+                            <label class="form-check-label" for="stage_reload_action">Dočasné úložisko</label>
+                        </div>
+                    </li>
+                    <li class="nav-item d-flex align-items-center">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="dwh_incremental_action" checked="checked">
+                            <label class="form-check-label" for="dwh_incremental_action">Dátový sklad</label>
+                        </div>
+                    </li>
+                    <li class="nav-item d-flex align-items-center">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="autorefresh_etl_table" checked="checked">
+                            <label class="form-check-label" for="autorefresh_etl_table">Automatické obnovenie tabuľky</label>
+                        </div>
                     </li>
                 </ul>
                 <ul class="navbar-nav gap-2">
                     <li class="nav-item">
-                        <span id="prod-db-status" class="badge bg-secondary">Operačná DB: Neznámy stav</span>
+                        <span id="prod-db-status" class="badge bg-secondary">Operačná DB</span>
                     </li>
                     <li class="nav-item">
-                        <span id="stage-db-status" class="badge bg-secondary">Dočasné úložisko dát: Neznámy stav: Unknown</span>
+                        <span id="stage-db-status" class="badge bg-secondary">Dočasné úložisko dát</span>
                     </li>
                     <li class="nav-item">
-                        <span id="dwh-status" class="badge bg-secondary">Dátový sklad: Neznámy stav</span>
+                        <span id="dwh-status" class="badge bg-secondary">Dátový sklad</span>
                     </li>
                     <li class="nav-item">
-                        <span id="redis-db-status" class="badge bg-secondary">Broker správ: Neznámy stav</span>
+                        <span id="redis-db-status" class="badge bg-secondary">Broker správ</span>
                     </li>
                     <li class="nav-item">
-                        <span id="celery-worker-status" class="badge bg-secondary">Front úloh: Neznámy stav</span>
+                        <span id="celery-worker-status" class="badge bg-secondary">Front úloh</span>
                     </li>
                 </ul>
             </div>

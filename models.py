@@ -97,7 +97,7 @@ class Report(db.Model):
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
     def __repr__(self):
-        return '<Report {}>'.format(self.id)
+        return '<Správa {}>'.format(self.id)
 
     def __init__(self, user_id, report_type, parameters, started_at, status, task_id):
         self.user_id = user_id
