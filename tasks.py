@@ -12,7 +12,7 @@ import time
 import gc
 from celeryconfig import broker_url, result_backend, PROD_DB_URI, STAGE_DB_URI, DWH_DB_URI
 
-from load_to_dwh import load_dim_date, load_dim_time, load_dim_address, load_dim_customer, load_dim_attribute, load_dim_product, load_bridge_product_attribute, load_dim_order_state, load_fact_cart_line, load_fact_order_line, load_fact_order_history
+from load_to_dwh import load_dim_date, load_dim_time, load_dim_address, load_dim_customer, load_dim_attribute, load_dim_product, load_bridge_product_attribute, load_dim_order_state, load_fact_cart_line, load_fact_order_line, load_fact_order_history, load_fact_order
 celery_app = Celery('etl_tasks', broker=broker_url, backend=result_backend)
 celery_app.config_from_object('celeryconfig')
 
@@ -247,6 +247,7 @@ L_TABLES_CONFIG = {
     "fact_cart_line": load_fact_cart_line,
     "fact_order_line": load_fact_order_line,
     "fact_order_history": load_fact_order_history,
+    "load_fact_order": load_fact_order,
 }
 
 @task_revoked.connect
@@ -471,6 +472,7 @@ def build_report_task(self, *args, **kwargs):
     report_data_type = args[0].get("report_data_type")
     report_diagram_type = args[0].get("report_diagram_type")
     show_diagram_table = args[0].get("show_diagram_table")
+    prep_query = args[0].get("prep_query")
     query = args[0].get("query")
     report_filters = args[0].get("filters")
     parameters = {
@@ -483,229 +485,282 @@ def build_report_task(self, *args, **kwargs):
         "query": query,
         "filters": report_filters,
     }
+
     print(f"Generovanie správy {report_type}...")
+
     report_id = insert_report(user_id, report_type, "{}", self.request.id)
-
-    with dwh_engine.connect() as conn:
-        df = pd.read_sql_query(text(query), conn)
-    if self.is_aborted():
-        print("Úloha zrušená")
-        return
-
     result = '{}'
     status = 'FAILED'
     message = 'Neznámy typ správy.'
 
-    try:
-        if report_type == 'gender_distribution':
-            df['gender'] = df['gender'].fillna('Neuvedené')
-            pie_trace = go.Pie(
-                labels=df['gender'],
-                values=df['customers_count'],
-                name=report_title,
-                textinfo="label+percent",
-                hoverinfo="label+value+percent",
-                domain=dict(row=0, column=0)
-            )
+    if report_type == 'top_customers_above_median_csv':
+        chunksize = 10000
+        export_filename = f"reports/files/{report_type}_{report_id}_{user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}.csv"
+        result = {
+            "filepath": export_filename,
+            "columns": [],
+            "total_rows": 0,
+        }
 
-            table_trace = go.Table(
-                header=dict(
-                    values=['Pohlavie', 'Počet zákazníkov'],
-                    align='center',
-                    line=dict(width=0),
-                    fill=dict(color='#e9ecef'),
-                    font=dict(size=12, color='#495057')
-                ),
-                cells=dict(
-                    values=[df['gender'], df['customers_count']],
-                    align='center',
-                    line=dict(width=0),
-                    fill=dict(color=['#ffffff', '#f8f9fa']),
-                    font=dict(size=11, color='#212529')
-                ),
-                domain=dict(row=1, column=0)
-            )
+        try:
+            with dwh_engine.connect().execution_options(stream_results=True) as conn:
+                if isinstance(prep_query, list) is list and len(prep_query) > 0:
+                    for query in prep_query:
+                        conn.execute(text(query))
+                        if self.is_aborted():
+                            print("Úloha zrušená")
+                            return
+                first_chunk = True
+                for chunk in pd.read_sql_query(text(query), con=conn, chunksize=chunksize):
+                    result["total_rows"] += chunk.shape[0]
 
-            data = [pie_trace, table_trace]
+                    if self.is_aborted():
+                        print("Úloha zrušená")
+                        return
 
-            layout = go.Layout(
-                title=report_title,
-                height=750,
-                grid=dict(rows=2, columns=1, pattern='independent'),
-                xaxis=dict(
-                    domain=[0, 1]
-                ),
-                yaxis=dict(
-                    domain=[0.55, 1],
-                ),
-                autosize=True
-            )
+                    if first_chunk:
+                        first_chunk = False
+                        result["columns"] = chunk.columns.tolist()
 
-            fig = go.Figure(data=data, layout=layout)
-            result = fig.to_json()
+                    chunk.to_csv(export_filename, mode='a', header=(not first_chunk), index=False)
 
-            status = "SUCCESS"
-            message = 'Správa bola úspešne vytvorená.'
-        elif report_type == 'age_distribution':
-            df['age_range'] = df['age_range'].fillna('Neuvedené')
-            df['avg_order_value'] = df['avg_order_value'].round(2)
-            bar_trace = go.Bar(
-                x=df['age_range'],
-                y=df['avg_order_value'],
-                name=report_title,
-            )
-            table_trace = go.Table(
-                header=dict(
-                    values=['Vekový rozsah', 'Priemerná suma objednávky'],
-                    align='center',
-                    line=dict(width=0),
-                    fill=dict(color='#e9ecef'),
-                    font=dict(size=12, color='#495057')
-                ),
-                cells=dict(
-                    values=[df['age_range'], df['avg_order_value']],
-                    align='center',
-                    line=dict(width=0),
-                    fill=dict(color=['#ffffff', '#f8f9fa']),
-                    font=dict(size=11, color='#212529')
-                ),
-                domain=dict(row=1, column=0)
-            )
+                    if self.is_aborted():
+                        print("Úloha zrušená")
+                        return
 
-            data = [bar_trace, table_trace]
+                    del chunk
+                    gc.collect()
+                status = "SUCCESS"
+                message = 'Správa bola úspešne vytvorená.'
+        except Exception as e:
+            print(e)
+            message = str(e)
+        finally:
+            update_report(report_id=report_id, status=status, message=message, result=json.dumps(result),
+                          parameters=json.dumps(parameters))
+    else:
+        with dwh_engine.connect() as conn:
+            if type(prep_query) is list and len(prep_query) > 0:
+                for query in prep_query:
+                    conn.execute(text(query))
+                    if self.is_aborted():
+                        print("Úloha zrušená")
+                        return
 
-            layout = go.Layout(
-                title=report_title,
-                height=750,
-                grid=dict(rows=2, columns=1, pattern='independent'),
-                xaxis=dict(
-                    tickmode="linear",
-                    dtick=1,
-                    title="Vekový rozsah",
-                    type="category",
-                    domain=[0, 1]
-                ),
-                yaxis=dict(
-                    title="Priemerná suma objednávky",
-                    domain=[0.55, 1],
-                ),
-                autosize=True,
-            )
+            df = pd.read_sql_query(text(query), conn)
+        if self.is_aborted():
+            print("Úloha zrušená")
+            return
 
-            fig = go.Figure(data=data, layout=layout)
-            result = fig.to_json()
+        try:
+            if report_type == 'gender_distribution':
+                df['gender'] = df['gender'].fillna('Neuvedené')
+                pie_trace = go.Pie(
+                    labels=df['gender'],
+                    values=df['customers_count'],
+                    name=report_title,
+                    textinfo="label+percent",
+                    hoverinfo="label+value+percent",
+                    domain=dict(row=0, column=0)
+                )
 
-            status = "SUCCESS"
-            message = 'Správa bola úspešne vytvorená.'
-        elif report_type == 'product_group_revenue':
-            df['total_revenue'] = df['total_revenue'].round(2)
-            bar_trace = go.Bar(
-                x=df['period'],
-                y=df['total_revenue'],
-                name=report_title,
-                # marker=dict(color='rgb(55, 83, 109)')
-            )
-            table_trace = go.Table(
-                header=dict(
-                    values=['Obdobie', 'Celkový výnos'],
-                    align='center',
-                    line=dict(width=0),
-                    fill=dict(color='#e9ecef'),
-                    font=dict(size=12, color='#495057')
-                ),
-                cells=dict(
-                    values=[df['period'], df['total_revenue']],
-                    align='center',
-                    line=dict(width=0),
-                    fill=dict(color=['#ffffff', '#f8f9fa']),
-                    font=dict(size=11, color='#212529')
-                ),
-                domain=dict(row=1, column=0)
-            )
+                table_trace = go.Table(
+                    header=dict(
+                        values=['Pohlavie', 'Počet zákazníkov'],
+                        align='center',
+                        line=dict(width=0),
+                        fill=dict(color='#e9ecef'),
+                        font=dict(size=12, color='#495057')
+                    ),
+                    cells=dict(
+                        values=[df['gender'], df['customers_count']],
+                        align='center',
+                        line=dict(width=0),
+                        fill=dict(color=['#ffffff', '#f8f9fa']),
+                        font=dict(size=11, color='#212529')
+                    ),
+                    domain=dict(row=1, column=0)
+                )
 
-            data = [bar_trace, table_trace]
+                data = [pie_trace, table_trace]
 
-            layout = go.Layout(
-                title=report_title,
-                height=750,
-                grid=dict(rows=2, columns=1, pattern='independent'),
-                xaxis=dict(
-                    tickmode="linear",
-                    dtick=1,
-                    title="Obdobie",
-                    type="category",
-                    domain=[0, 1]
-                ),
-                yaxis=dict(
-                    title="Výnosy",
-                    # domain=[0, 1],
-                    domain=[0.55, 1],
-                ),
-                autosize=True,
-            )
+                layout = go.Layout(
+                    title=report_title,
+                    height=750,
+                    grid=dict(rows=2, columns=1, pattern='independent'),
+                    xaxis=dict(
+                        domain=[0, 1]
+                    ),
+                    yaxis=dict(
+                        domain=[0.55, 1],
+                    ),
+                    autosize=True
+                )
 
-            fig = go.Figure(data=data, layout=layout)
-            result = fig.to_json()
+                fig = go.Figure(data=data, layout=layout)
+                result = fig.to_json()
 
-            status = "SUCCESS"
-            message = 'Správa bola úspešne vytvorená.'
-        elif report_type == 'product_gender_revenue':
-            df['total_revenue'] = df['total_revenue'].round(2)
-            bar_trace = go.Bar(
-                x=df['period'],
-                y=df['total_revenue'],
-                name=report_title,
-                # marker=dict(color='rgb(55, 83, 109)')
-            )
+                status = "SUCCESS"
+                message = 'Správa bola úspešne vytvorená.'
+            elif report_type == 'age_distribution':
+                df['age_range'] = df['age_range'].fillna('Neuvedené')
+                df['avg_order_value'] = df['avg_order_value'].round(2)
+                bar_trace = go.Bar(
+                    x=df['age_range'],
+                    y=df['avg_order_value'],
+                    name=report_title,
+                )
+                table_trace = go.Table(
+                    header=dict(
+                        values=['Vekový rozsah', 'Priemerná suma objednávky'],
+                        align='center',
+                        line=dict(width=0),
+                        fill=dict(color='#e9ecef'),
+                        font=dict(size=12, color='#495057')
+                    ),
+                    cells=dict(
+                        values=[df['age_range'], df['avg_order_value']],
+                        align='center',
+                        line=dict(width=0),
+                        fill=dict(color=['#ffffff', '#f8f9fa']),
+                        font=dict(size=11, color='#212529')
+                    ),
+                    domain=dict(row=1, column=0)
+                )
 
-            table_trace = go.Table(
-                header=dict(
-                    values=['Obdobie', 'Celkový výnos'],
-                    align='center',
-                    line=dict(width=0),
-                    fill=dict(color='#e9ecef'),
-                    font=dict(size=12, color='#495057')
-                ),
-                cells=dict(
-                    values=[df['period'], df['total_revenue']],
-                    align='center',
-                    line=dict(width=0),
-                    fill=dict(color=['#ffffff', '#f8f9fa']),
-                    font=dict(size=11, color='#212529')
-                ),
-                domain=dict(row=1, column=0)
-            )
+                data = [bar_trace, table_trace]
 
-            data = [bar_trace, table_trace]
-            layout = go.Layout(
-                title=report_title,
-                height=750,
-                grid=dict(rows=2, columns=1, pattern='independent'),
-                xaxis=dict(
-                    tickmode="linear",
-                    dtick=1,
-                    title="Obdobie",
-                    type="category",
-                    domain=[0, 1]
-                ),
-                yaxis=dict(
-                    title="Výnosy",
-                    # domain=[0, 1],
-                    domain=[0.55, 1],
-                ),
-                autosize=True,
-            )
+                layout = go.Layout(
+                    title=report_title,
+                    height=750,
+                    grid=dict(rows=2, columns=1, pattern='independent'),
+                    xaxis=dict(
+                        tickmode="linear",
+                        dtick=1,
+                        title="Vekový rozsah",
+                        type="category",
+                        domain=[0, 1]
+                    ),
+                    yaxis=dict(
+                        title="Priemerná suma objednávky",
+                        domain=[0.55, 1],
+                    ),
+                    autosize=True,
+                )
 
-            fig = go.Figure(data=data, layout=layout)
-            result = fig.to_json()
+                fig = go.Figure(data=data, layout=layout)
+                result = fig.to_json()
 
-            status = "SUCCESS"
-            message = 'Správa bola úspešne vytvorená.'
-    except Exception as e:
-        print(e)
-        message = str(e)
-    finally:
-        update_report(report_id=report_id, status=status, message=message, result=result, parameters=json.dumps(parameters))
-        del df
-        gc.collect()
+                status = "SUCCESS"
+                message = 'Správa bola úspešne vytvorená.'
+            elif report_type == 'product_group_revenue':
+                df['total_revenue'] = df['total_revenue'].round(2)
+                bar_trace = go.Bar(
+                    x=df['period'],
+                    y=df['total_revenue'],
+                    name=report_title,
+                    # marker=dict(color='rgb(55, 83, 109)')
+                )
+                table_trace = go.Table(
+                    header=dict(
+                        values=['Obdobie', 'Celkový výnos'],
+                        align='center',
+                        line=dict(width=0),
+                        fill=dict(color='#e9ecef'),
+                        font=dict(size=12, color='#495057')
+                    ),
+                    cells=dict(
+                        values=[df['period'], df['total_revenue']],
+                        align='center',
+                        line=dict(width=0),
+                        fill=dict(color=['#ffffff', '#f8f9fa']),
+                        font=dict(size=11, color='#212529')
+                    ),
+                    domain=dict(row=1, column=0)
+                )
 
+                data = [bar_trace, table_trace]
+
+                layout = go.Layout(
+                    title=report_title,
+                    height=750,
+                    grid=dict(rows=2, columns=1, pattern='independent'),
+                    xaxis=dict(
+                        tickmode="linear",
+                        dtick=1,
+                        title="Obdobie",
+                        type="category",
+                        domain=[0, 1]
+                    ),
+                    yaxis=dict(
+                        title="Výnosy",
+                        # domain=[0, 1],
+                        domain=[0.55, 1],
+                    ),
+                    autosize=True,
+                )
+
+                fig = go.Figure(data=data, layout=layout)
+                result = fig.to_json()
+
+                status = "SUCCESS"
+                message = 'Správa bola úspešne vytvorená.'
+            elif report_type == 'product_gender_revenue':
+                df['total_revenue'] = df['total_revenue'].round(2)
+                bar_trace = go.Bar(
+                    x=df['period'],
+                    y=df['total_revenue'],
+                    name=report_title,
+                    # marker=dict(color='rgb(55, 83, 109)')
+                )
+
+                table_trace = go.Table(
+                    header=dict(
+                        values=['Obdobie', 'Celkový výnos'],
+                        align='center',
+                        line=dict(width=0),
+                        fill=dict(color='#e9ecef'),
+                        font=dict(size=12, color='#495057')
+                    ),
+                    cells=dict(
+                        values=[df['period'], df['total_revenue']],
+                        align='center',
+                        line=dict(width=0),
+                        fill=dict(color=['#ffffff', '#f8f9fa']),
+                        font=dict(size=11, color='#212529')
+                    ),
+                    domain=dict(row=1, column=0)
+                )
+
+                data = [bar_trace, table_trace]
+                layout = go.Layout(
+                    title=report_title,
+                    height=750,
+                    grid=dict(rows=2, columns=1, pattern='independent'),
+                    xaxis=dict(
+                        tickmode="linear",
+                        dtick=1,
+                        title="Obdobie",
+                        type="category",
+                        domain=[0, 1]
+                    ),
+                    yaxis=dict(
+                        title="Výnosy",
+                        # domain=[0, 1],
+                        domain=[0.55, 1],
+                    ),
+                    autosize=True,
+                )
+
+                fig = go.Figure(data=data, layout=layout)
+                result = fig.to_json()
+
+                status = "SUCCESS"
+                message = 'Správa bola úspešne vytvorená.'
+        except Exception as e:
+            print(e)
+            message = str(e)
+        finally:
+            update_report(report_id=report_id, status=status, message=message, result=result, parameters=json.dumps(parameters))
+            del df
+            gc.collect()
