@@ -313,9 +313,6 @@ def view_report(report_id):
 
         created_date = report.ended_at.strftime("%Y-%m-%d %H:%M:%S") if report.ended_at else None
 
-        # report_parameters = report.parameters.copy()
-        # report_parameters.pop('query', None)
-
         report_data_type = report.parameters.get("report_data_type") if report.parameters.get("report_data_type") else "diagram"
 
         if report_data_type == "table":

@@ -679,7 +679,7 @@
 <script src="{{ url_for('static', filename='assets/tabulator/js/tabulator.min.js') }}"></script>
 <script>
     let report_id = "{{ report.id }}";
-    let createdAt = "{{ report.ended_at }}";
+    let createdAt = "{{ report.ended_at.strftime('%Y-%m-%d %H:%M:%S') }}";
     let reportParametersData = {{ report_parameters|tojson }};
     let reportData = {{ report.result|tojson }};
     function displayDetails() {
