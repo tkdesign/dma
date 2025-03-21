@@ -392,7 +392,7 @@ def dwh_incremental_task(self, *args, **kwargs):
     job_name = "dwh_incremental"
     print("Načítanie do dátového skladu spustené.")
     log_id = insert_etl_log(job_name, self.request.id)
-    pass_mode = True
+    pass_mode = False
     if pass_mode:
         time.sleep(10)
         print("Načítanie do dátového skladu dokončené.")
