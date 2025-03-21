@@ -4,8 +4,8 @@ filter_queries = {
         SELECT MIN(d.date) AS date FROM fact_cart_line fc
         JOIN dim_date d ON fc.date_sk = d.date_key
         UNION ALL
-        SELECT MIN(d.date) AS date FROM fact_order_line fo
-        JOIN dim_date d ON fo.date_sk = d.date_key
+        SELECT MIN(dd.date) AS date FROM fact_order_line fo
+        JOIN dim_date dd ON fo.date_sk = dd.date_key
     ) AS min_dates;
     """,
     "months": """
@@ -34,28 +34,30 @@ dashboard_queries = {
     FROM fact_cart_line
     WHERE date_sk IN (SELECT date_key FROM dim_date WHERE {filter})
     """,
-    "orders_query": """
-    SELECT DISTINCT
-        orderid_bk,
-        customer_sk,
-        MAX(paid_tax_incl) AS total_paid_tax_incl
-    FROM fact_order_line
-    WHERE date_sk IN (SELECT date_key FROM dim_date WHERE {filter})
-    GROUP BY orderid_bk, customer_sk
+    "orders_paid_query": """
+    SELECT
+        COUNT(fo.orderid_bk) AS orders_paid_count,
+        SUM(fo.paid_tax_incl) AS total_revenue
+    FROM fact_order fo
+	JOIN fact_order_history foh ON foh.orderid_bk = fo.orderid_bk AND foh.orderstateid_bk = 2
+	JOIN dim_date dd ON fo.date_sk = dd.date_key
+    WHERE {filter}
     """,
-    "customer_query": """
-    SELECT dc.customer_key, dc.birthdate
-    FROM dim_customer dc
-    WHERE {valid_customer_filter}
+    "orders_query": """
+    SELECT
+        COUNT(fo.orderid_bk) AS orders_count
+    FROM fact_order fo
+	JOIN dim_date dd ON fo.date_sk = dd.date_key
+    WHERE {filter}
     """,
     "period_revenue":"""
     SELECT
-        TO_CHAR(d.date, '{date_format}') AS period,
-        SUM(fo.amount_tax_incl) AS total_revenue
-    FROM fact_order_line fo
-    JOIN dim_date d ON fo.date_sk = d.date_key
-    JOIN dim_product dp ON fo.product_sk = dp.product_key
-    WHERE {filter} AND {valid_product_filter}
+        TO_CHAR(dd.date, '{date_format}') AS period,
+        SUM(fo.paid_tax_incl) AS total_revenue
+    FROM fact_order fo
+    JOIN dim_date dd ON fo.date_sk = dd.date_key
+    JOIN fact_order_history foh ON foh.orderid_bk = fo.orderid_bk AND foh.orderstateid_bk = 2
+    WHERE {filter}
     GROUP BY period
     ORDER BY period;
     """,
@@ -71,7 +73,7 @@ dashboard_queries = {
             END AS time_of_day,
             dd.day_of_week,
             dd.day_name
-        FROM fact_order_line fo
+        FROM fact_order fo
         JOIN dim_time dt ON fo.time_sk = dt.time_key
         JOIN dim_date dd ON fo.date_sk = dd.date_key
         WHERE {filter}
@@ -116,9 +118,10 @@ dashboard_queries = {
                      (FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, dc.birthdate)) / 10) * 10 + 9)
             END AS age_range,
             AVG(fo.paid_tax_incl) AS avg_order_value
-        FROM fact_order_line fo
+        FROM fact_order fo
         JOIN dim_customer dc ON fo.customer_sk = dc.customer_key
-        WHERE fo.date_sk IN (SELECT date_key FROM dim_date WHERE {filter}) AND {valid_customer_filter}
+        JOIN dim_date dd ON fo.date_sk = dd.date_key
+        WHERE {filter} AND {valid_customer_filter}
         GROUP BY 
             CASE 
                 WHEN dc.birthdate IS NULL THEN 'Neuvedené'
@@ -154,29 +157,29 @@ reports_queries = {
         SELECT 
             FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, dc.birthdate)) / 10) * 10 AS age_range,
             AVG(fo.paid_tax_incl) AS avg_order_value
-        FROM fact_order_line fo
+        FROM fact_order fo
+        JOIN dim_date dd ON fo.date_sk = dd.date_key
         JOIN dim_customer dc ON fo.customer_sk = dc.customer_key
-        WHERE fo.date_sk IN (SELECT date_key FROM dim_date WHERE {filter}) AND {valid_customer_filter}
+        WHERE {filter} AND {valid_customer_filter}
         GROUP BY age_range
         ORDER BY age_range;
         """
     },
     "product_group_revenue": {
-        "title": "Výnosy z marketingových kampaní",
+        "title": "Príjmy z marketingových kampaní",
         "data_type": "diagram",
         "diagram_type": "bar",
         "show_diagram_table": True,
         "query": """
         SELECT
-            TO_CHAR(d.date, '{date_format}') AS period,
-            SUM(fo.amount_tax_incl) AS total_revenue
-        FROM fact_order_line fo
-        JOIN dim_date d ON fo.date_sk = d.date_key
-        JOIN dim_product dp ON fo.product_sk = dp.product_key
-        WHERE {filter} AND {valid_product_filter}
-        AND (
-            {group_filter}
-        )
+            TO_CHAR(dd.date, '{date_format}') AS period,
+            SUM(fo.paid_tax_incl) AS total_revenue
+        FROM fact_order_line fol
+        JOIN fact_order fo ON fo.orderid_bk = fol.orderid_bk
+        JOIN fact_order_history foh ON foh.orderid_bk = fo.orderid_bk AND foh.orderstateid_bk = 2
+        JOIN dim_date dd ON fol.date_sk = dd.date_key
+        JOIN dim_product dp ON fol.product_sk = dp.product_key
+        WHERE {filter} AND {valid_product_filter} AND ({group_filter})
         GROUP BY period
         ORDER BY period;
         """,
@@ -202,21 +205,20 @@ reports_queries = {
         }
     },
     "product_gender_revenue": {
-        "title": "Výnosy podľa rodovej kategórie tovaru",
+        "title": "Príjmy podľa rodovej kategórie tovaru",
         "data_type": "diagram",
         "diagram_type": "bar",
         "show_diagram_table": True,
         "query": """
         SELECT
-            TO_CHAR(d.date, '{date_format}') AS period,
-            SUM(fo.amount_tax_incl) AS total_revenue
-        FROM fact_order_line fo
-        JOIN dim_date d ON fo.date_sk = d.date_key
-        JOIN dim_product dp ON fo.product_sk = dp.product_key
-        WHERE {filter} AND {valid_product_filter}
-        AND (
-            {group_filter}
-        )
+            TO_CHAR(dd.date, '{date_format}') AS period,
+            SUM(fo.paid_tax_incl) AS total_revenue
+        FROM fact_order_line fol
+        JOIN fact_order fo ON fo.orderid_bk = fol.orderid_bk
+        JOIN fact_order_history foh ON foh.orderid_bk = fo.orderid_bk AND foh.orderstateid_bk = 2
+        JOIN dim_date dd ON fol.date_sk = dd.date_key
+        JOIN dim_product dp ON fol.product_sk = dp.product_key
+        WHERE {filter} AND {valid_product_filter} AND ({group_filter})
         GROUP BY period
         ORDER BY period;
         """,
@@ -230,7 +232,33 @@ reports_queries = {
                 GROUP BY p.market_gender;
                 """
             },
-        }
+        },
+    },
+    "top_customers_above_median_csv": {
+        "title": "Top zákazníci nad mediánom",
+        "data_type": "table",
+        "query": """
+        WITH 
+        median_calc AS (
+            SELECT 
+                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY fo.paid_tax_incl) AS median_order_total
+            FROM fact_order fo
+            JOIN dim_date dd ON fo.date_sk = dd.date_key
+            WHERE {filter}
+        )
+        SELECT 
+            dc.customerid_bk AS customer_id,
+            SUM(fo.paid_tax_incl) AS total_spent,
+            COUNT(fo.orderid_bk) AS order_count
+        FROM fact_order fo
+        JOIN median_calc mc ON fo.paid_tax_incl > mc.median_order_total
+        JOIN dim_customer dc ON fo.customer_sk = dc.customer_key
+        JOIN dim_date dd ON fo.date_sk = dd.date_key
+        JOIN fact_order_history foh ON foh.orderid_bk = fo.orderid_bk AND foh.orderstateid_bk = 2
+        WHERE {filter} AND {valid_customer_filter}
+        GROUP BY dc.customerid_bk
+        ORDER BY total_spent DESC;
+        """,
     },
 }
 

@@ -1233,3 +1233,40 @@ def load_fact_order_history(self, stage_engine, dwh_engine):
 
     print("Spracovanie `fact_order_history` dokončené.")
     return
+
+def load_fact_order(self, stage_engine, dwh_engine):
+    if self is not None and self.is_aborted():
+        print("Úloha zrušená")
+        return
+
+    query = """
+    INSERT INTO fact_order (orderid_bk, customer_sk, address_sk, date_sk, time_sk, paid, paid_tax_incl, taxrate, conversion_rate, paymenttype, carrier)
+    SELECT 
+        fol.orderid_bk, 
+        fol.customer_sk, 
+        fol.address_sk, 
+        fol.date_sk, 
+        fol.time_sk, 
+        MAX(fol.paid) AS paid,  
+        MAX(fol.paid_tax_incl) AS paid_tax_incl,  
+        MAX(fol.taxrate) AS taxrate,  
+        MAX(fol.conversion_rate) AS conversion_rate,  
+        MAX(fol.paymenttype) AS paymenttype,  
+        MAX(fol.carrier) AS carrier  
+    FROM fact_order_line fol
+    WHERE NOT EXISTS (
+        SELECT 1 FROM fact_order fo WHERE fo.orderid_bk = fol.orderid_bk
+    )
+    GROUP BY fol.orderid_bk, fol.customer_sk, fol.address_sk, fol.date_sk, fol.time_sk;
+    """
+
+    print('Spracovanie `fact_order` sa začalo...')
+
+    with dwh_engine.begin() as conn:
+        conn.execute(query)
+
+    if self is not None and self.is_aborted():
+        print("Úloha zrušená")
+        return
+
+    print("Spracovanie `fact_order` dokončené.")

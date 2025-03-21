@@ -1,10 +1,11 @@
 import datetime
 import io
+import os
 
-from flask import Blueprint, request, jsonify, render_template, redirect, url_for, Response
+from flask import Blueprint, request, jsonify, render_template, redirect, url_for, Response, abort, send_file
 from flask_login import current_user, login_required
 from sqlalchemy import text, create_engine
-
+import pandas as pd
 from auth.base_auth import check_auth, authenticate
 from celeryconfig import PROD_DB_URI, DWH_DB_URI
 from dashboard.dashboard import apply_period_filter
@@ -190,6 +191,12 @@ def create_report():
     query = apply_period_filter(query, current_date, date_filter_type, date_filter_value, range_start, range_end)
     query = query.format(group_filter=" AND ".join(where_clause))
 
+    prep_query = reports_queries[report_type].get("prep_query")
+    if prep_query:
+        for i in range(len(prep_query)):
+            prep_query[i] = apply_period_filter(prep_query[i], current_date, date_filter_type, date_filter_value, range_start, range_end)
+            prep_query[i] = prep_query[i].format(group_filter=" AND ".join(where_clause))
+
     parameters = {
         "user_id": current_user.id,
         "report_type": report_type,
@@ -197,6 +204,7 @@ def create_report():
         "report_data_type": reports_queries[report_type]["data_type"] if "data_type" in reports_queries[report_type] else "diagram",
         "report_diagram_type": reports_queries[report_type]["diagram_type"] if "diagram_type" in reports_queries[report_type] else "bar",
         "show_diagram_table": reports_queries[report_type]["show_diagram_table"] if "show_diagram_table" in reports_queries[report_type] else True,
+        "prep_query": prep_query,
         "query": query,
         "filters": {
             "date_filter_type": date_filter_type,
@@ -300,7 +308,7 @@ def view_report(report_id):
     report = Report.query.get(report_id)
 
     if report:
-        if report.user_id != current_user.id:
+        if report.user_id != current_user.id and not current_user.is_admin():
             return redirect(url_for('dashboard.dashboard_index'))
 
         created_date = report.ended_at.strftime("%Y-%m-%d %H:%M:%S") if report.ended_at else None
@@ -309,10 +317,9 @@ def view_report(report_id):
         # report_parameters.pop('query', None)
 
         report_data_type = report.parameters.get("report_data_type") if report.parameters.get("report_data_type") else "diagram"
-        # report_diagram_type = report_parameters.get("report_diagram_type") if report_parameters.get("report_diagram_type") else "bar"
 
         if report_data_type == "table":
-            return render_template('reports/report_table.html', title='DMA - Správa', page='view_report', report=report, report_parameters=report.parameters)
+            return render_template('reports/report_table.html', title='DMA - Správa', page='view_report', report=report, report_parameters=report.parameters, report_data_type=report_data_type,)
         elif report_data_type == "diagram":
             return render_template('reports/report.html', title='DMA - Správa', page='view_report', report=report, report_parameters=report.parameters)
 
@@ -332,7 +339,7 @@ def generate_pdf():
     report = Report.query.get(report_id)
 
     if report:
-        if report.user_id != current_user.id:
+        if report.user_id != current_user.id and not current_user.is_admin():
             return redirect(url_for('dashboard.dashboard_index'))
 
         html_content = render_template('reports/report_pdf.html', title='DMA - Správa', page='pdf_report', report=report, report_parameters=report.parameters)
@@ -363,3 +370,65 @@ def generate_pdf():
         )
 
     return jsonify({"error": "Správa neexistuje"}), 200
+
+
+@reports_blueprint.route('/get-csv-table/<int:report_id>')
+@login_required
+def get_csv_table(report_id):
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Neautorizovaný prístup"}), 403
+
+    report = Report.query.get(report_id)
+
+    if report:
+        if report.user_id != current_user.id and not current_user.is_admin():
+            return redirect(url_for('dashboard.dashboard_index'))
+
+        try:
+            page = int(request.args.get('page', 1))
+            page_size = int(request.args.get('pageSize', 10))
+        except ValueError:
+            page = 1
+            page_size = 10
+
+        filepath = report.result.get('filepath')
+        total_records = report.result.get('total_rows')
+
+        columns = report.result.get('columns')
+
+        if not os.path.exists(filepath):
+            return jsonify({'error': 'Súbor neexistuje'}), 200
+
+        df = pd.read_csv(filepath, header=None, names=columns, skiprows=(page - 1) * page_size + 1, nrows=page_size)
+        rows = df.to_dict(orient='records')
+
+        data = []
+
+        for row in rows:
+            data.append(row)
+
+        return jsonify({
+            "last_page": (total_records - 1 + page_size - 1) // page_size,
+            "data": data
+        }), 200
+
+    return jsonify({"error": "Správa neexistuje"}), 200
+
+@reports_blueprint.route('/download-csv-report/<int:report_id>')
+@login_required
+def download_csv_report(report_id):
+    if not current_user.is_authenticated:
+        abort(403)
+
+    report = Report.query.get(report_id)
+
+    if report:
+        if report.user_id != current_user.id and not current_user.is_admin():
+            return redirect(url_for('dashboard.dashboard_index'))
+
+    filepath = report.result.get('filepath')
+
+    if not os.path.exists(filepath):
+        abort(404)
+
+    return send_file(filepath, as_attachment=True, download_name='report.csv', mimetype='text/csv')

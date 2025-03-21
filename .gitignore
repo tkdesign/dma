@@ -2,5 +2,6 @@
 /.venv/
 /dmaenv/
 /__pycache__/
+/reports/files/
 celeryconfig.py
 config.py

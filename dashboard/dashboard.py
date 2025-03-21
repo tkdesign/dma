@@ -127,41 +127,34 @@ def get_summary():
         carts_query = apply_period_filter(dashboard_queries["carts_query"], current_date, filter_type, filter_value, range_start, range_end)
 
         carts_df = pd.read_sql_query(text(carts_query), conn)
+        carts_df['carts_count'] = carts_df['carts_count'].fillna(0)
         carts_count = carts_df['carts_count'].iloc[0]
         del carts_df
 
         orders_query = apply_period_filter(dashboard_queries["orders_query"], current_date, filter_type, filter_value, range_start, range_end)
         orders_df = pd.read_sql_query(text(orders_query), conn)
+        orders_df['orders_count'] = orders_df['orders_count'].fillna(0)
+        orders_count = int(orders_df['orders_count'].iloc[0])
+        del orders_df
 
-        customer_query = apply_period_filter(dashboard_queries["customer_query"], current_date, filter_type, filter_value, range_start, range_end)
-        customers_df = pd.read_sql_query(text(customer_query), conn)
-
-        merged_df = orders_df.merge(customers_df,
-                                  left_on='customer_sk',
-                                  right_on='customer_key',
-                                  how='left')
-
-        del orders_df, customers_df
-
-        merged_df['birthdate'] = pd.to_datetime(merged_df['birthdate'], errors='coerce')
+        orders_paid_query = apply_period_filter(dashboard_queries["orders_paid_query"], current_date, filter_type, filter_value, range_start, range_end)
+        orders_paid_df = pd.read_sql_query(text(orders_paid_query), conn)
+        orders_paid_df['orders_paid_count'] = orders_paid_df['orders_paid_count'].fillna(0)
+        orders_paid_count = int(orders_paid_df['orders_paid_count'].iloc[0])
+        orders_paid_df['total_revenue'] = pd.to_numeric(orders_paid_df['total_revenue'], errors='coerce').fillna(0)
+        total_revenue = float(orders_paid_df['total_revenue'].iloc[0])
+        del orders_paid_df
 
         summary = {
-            'orders_count': merged_df['orderid_bk'].nunique(),
-            'total_revenue': round(merged_df['total_paid_tax_incl'].sum(), 2),
-            'avg_order_value': 0.0 if merged_df.empty else merged_df['total_paid_tax_incl'].mean(),
+            'orders_count': orders_count,
+            'total_revenue': round(total_revenue, 2),
+            'orders_paid_count': orders_paid_count,
             'carts_count': int(carts_count),
-            'conversion_rate': (merged_df['orderid_bk'].nunique() * 100.0 / carts_count
-                              if carts_count > 0 else 0.0),
-            'avg_age': (pd.Timestamp.now().year - merged_df['birthdate'].dt.year).mean()
-                       if not merged_df['birthdate'].isna().all() else 0.0
+            'conversion_rate': (orders_count * 100.0 / carts_count if carts_count > 0 else 0.0),
+            'conversion_rate_paid': (orders_paid_count * 100.0 / carts_count if carts_count > 0 else 0.0),
         }
 
-        summary['orders_count'] = int(summary['orders_count'])
-        summary['total_revenue'] = float(summary['total_revenue'])
-        summary['avg_order_value'] = float(summary['avg_order_value'])
         summary['conversion_rate'] = round(float(summary['conversion_rate']), 2)
-        summary['avg_age'] = float(summary['avg_age']) if summary['avg_age'] else 0.0
-        del merged_df
 
     gc.collect()
     return jsonify(summary if summary else {})
@@ -193,14 +186,14 @@ def get_period_revenue():
         bar_trace = go.Bar(
             x=revenue_df['period'],
             y=revenue_df['total_revenue'],
-            name='Výnosy',
+            name='Príjmy',
             # marker=dict(color='rgb(55, 83, 109)')
         )
 
         data = [bar_trace,]
 
         layout = go.Layout(
-            title='Výnos',
+            title='Príjmy',
             height=400,
             grid=dict(rows=1, columns=1, pattern='independent'),
             xaxis=dict(
@@ -211,7 +204,7 @@ def get_period_revenue():
                 domain=[0, 1]
             ),
             yaxis=dict(
-                title="Výnos",
+                title="Príjmy",
                 domain=[0, 1],
             ),
             autosize=True,
