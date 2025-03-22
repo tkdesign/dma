@@ -493,7 +493,7 @@ def build_report_task(self, *args, **kwargs):
     status = 'FAILED'
     message = 'Neznámy typ správy.'
 
-    if report_type == 'top_customers_above_median_csv':
+    if report_data_type == 'table':
         chunksize = 10000
         export_filename = f"reports/files/{report_type}_{report_id}_{user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}.csv"
         result = {
