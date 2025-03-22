@@ -347,7 +347,7 @@ def generate_pdf():
             page = browser.new_page()
             page.set_viewport_size({"width": 768, "height": 1024})
 
-            page.set_content(html_content, wait_until='networkidle')
+            page.set_content(html_content, wait_until='domcontentloaded')
 
             page.emulate_media(media="print")
             pdf_data = page.pdf(

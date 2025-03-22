@@ -663,7 +663,7 @@ def build_report_task(self, *args, **kwargs):
                 )
                 table_trace = go.Table(
                     header=dict(
-                        values=['Obdobie', 'Celkový výnos'],
+                        values=['Obdobie', 'Celkový príjem s DPH'],
                         align='center',
                         line=dict(width=0),
                         fill=dict(color='#e9ecef'),
@@ -693,7 +693,7 @@ def build_report_task(self, *args, **kwargs):
                         domain=[0, 1]
                     ),
                     yaxis=dict(
-                        title="Výnosy",
+                        title="Príjmy z DPH",
                         # domain=[0, 1],
                         domain=[0.55, 1],
                     ),
@@ -716,7 +716,7 @@ def build_report_task(self, *args, **kwargs):
 
                 table_trace = go.Table(
                     header=dict(
-                        values=['Obdobie', 'Celkový výnos'],
+                        values=['Obdobie', 'Celkový príjem s DPH'],
                         align='center',
                         line=dict(width=0),
                         fill=dict(color='#e9ecef'),
@@ -745,7 +745,7 @@ def build_report_task(self, *args, **kwargs):
                         domain=[0, 1]
                     ),
                     yaxis=dict(
-                        title="Výnosy",
+                        title="Príjmy z DPH",
                         # domain=[0, 1],
                         domain=[0.55, 1],
                     ),
