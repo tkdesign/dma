@@ -254,6 +254,7 @@ L_TABLES_CONFIG = {
 def revoke_handler(*args, **kwargs):
     if "request" in kwargs:
         revoke_etl_log(kwargs["request"].id)
+
     print("Úloha zrušená")
 
 def revoke_etl_log(task_id):
@@ -268,6 +269,7 @@ def revoke_etl_log(task_id):
 
 def clear_stage_tables(self, tables):
     print("Vyprázdnenie tabuliek dočasného úložiska...")
+
     target_tables = [ config["target"] for config in tables ]
     with stage_engine.begin() as conn:
         for table in target_tables:
@@ -276,6 +278,7 @@ def clear_stage_tables(self, tables):
                 return
             conn.execute(text(f"TRUNCATE TABLE {table} RESTART IDENTITY CASCADE"))
             print(f"Tabuľka {table} bola vyprázdnená.")
+
     print("Vyprázdnenie tabuliek dočasného úložiska dokončené.")
 
 def et_table(self, table_name, query, target_table, convert_items, chunksize=10000):
@@ -284,18 +287,8 @@ def et_table(self, table_name, query, target_table, convert_items, chunksize=100
         return
     print(f"Synchronizácia tabuľky {table_name}...")
 
-    # offset = 0
-
-    # while True:
-    #     chunk = pd.read_sql_query(text(query.format(chunksize=str(chunksize), offset=str(offset))), con=prod_engine)
     with prod_engine.connect().execution_options(stream_results=True) as conn:
         for chunk in pd.read_sql_query(text(query), con=conn, chunksize=chunksize):
-
-            # if chunk.empty:
-            #     break
-            #
-            # offset += chunksize
-
             for field, convert_func in convert_items:
                 chunk[field] = chunk[field].apply(convert_func)
 
@@ -319,17 +312,20 @@ def et_table(self, table_name, query, target_table, convert_items, chunksize=100
 def insert_etl_log(job_name, task_id):
     with stage_engine.begin() as conn:
         started_at = datetime.now()
+
         result = conn.execute(text("""
             INSERT INTO etl_log (job_name, started_at, status, task_id)
             VALUES (:job_name, :started_at, :status, :task_id)
             RETURNING id
         """), {"job_name": job_name, "started_at": started_at, "status": "RUNNING", "task_id": task_id})
         row = result.fetchone()
+
         return row[0] if row is not None else None
 
 def update_etl_log(log_id, status, message=None, tables_processed=None):
     with stage_engine.begin() as conn:
         ended_at = datetime.now()
+
         conn.execute(text("""
             UPDATE etl_log
             SET status = :status,
@@ -349,20 +345,27 @@ def update_etl_log(log_id, status, message=None, tables_processed=None):
 def stage_reload_task(self, *args, **kwargs):
     if self.is_aborted():
         return {"status": "REVOKED", "tables": 0}
+
     job_name = "stage_reload"
     log_id = insert_etl_log(job_name, self.request.id)
+
     print("Načítanie dočasného úložiska spustené.")
-    pass_mode = False
+
+    pass_mode = False # True only for testing
     if pass_mode:
         print("Vyprázdňovanie tabuliek dočasného úložiska...")
+
         time.sleep(10)
         print("Vyprázdňovanie tabuliek dočasného úložiska dokončené.")
         print("Extracting data from production...")
+
         time.sleep(10)
         print("End of extracting data from production.")
         print("Stage reload completed.")
         update_etl_log(log_id, "SUCCESS", "Stage reload completed", 0)
+
         return {"status": "SUCCESS", "tables": 0}
+
     try:
         clear_stage_tables(self, ET_TABLES_CONFIG.values())
         if self.is_aborted():
@@ -389,15 +392,22 @@ def stage_reload_task(self, *args, **kwargs):
 def dwh_incremental_task(self, *args, **kwargs):
     if self.is_aborted():
         return {"status": "REVOKED", "tables": 0}
+
     job_name = "dwh_incremental"
+
     print("Načítanie do dátového skladu spustené.")
+
     log_id = insert_etl_log(job_name, self.request.id)
-    pass_mode = False
+
+    pass_mode = False # True only for testing
     if pass_mode:
         time.sleep(10)
+
         print("Načítanie do dátového skladu dokončené.")
         update_etl_log(log_id, "SUCCESS", "Načítanie do dátového skladu dokončené.", 9)
+
         return {"status": "SUCCESS", "tables": 0}
+
     try:
         tables_processed = 0
         for table_name, load_function in L_TABLES_CONFIG.items():
@@ -414,11 +424,15 @@ def dwh_incremental_task(self, *args, **kwargs):
             if self.is_aborted():
                 print("Úloha zrušená")
                 break
+
             load_function(self, stage_engine, dwh_engine)
             tables_processed += 1
+
         print("Načítanie do dátového skladu dokončené.")
+
         if self.is_aborted():
             return {"status": "REVOKED", "tables": tables_processed}
+
         update_etl_log(log_id, "SUCCESS", "Načítanie do dátového skladu dokončené.", tables_processed)
         return {"status": "SUCCESS", "rows": tables_processed}
     except Exception as e:
@@ -462,6 +476,7 @@ def build_report_task(self, *args, **kwargs):
     if self.is_aborted():
         print("Úloha zrušená")
         return
+
     if args is not None and len(args) == 0:
         print("Úloha zrušená")
         return
@@ -507,9 +522,11 @@ def build_report_task(self, *args, **kwargs):
                 if isinstance(prep_query, list) is list and len(prep_query) > 0:
                     for query in prep_query:
                         conn.execute(text(query))
+
                         if self.is_aborted():
                             print("Úloha zrušená")
                             return
+
                 first_chunk = True
                 for chunk in pd.read_sql_query(text(query), con=conn, chunksize=chunksize):
                     result["total_rows"] += chunk.shape[0]
@@ -530,6 +547,7 @@ def build_report_task(self, *args, **kwargs):
 
                     del chunk
                     gc.collect()
+
                 status = "SUCCESS"
                 message = 'Správa bola úspešne vytvorená.'
         except Exception as e:

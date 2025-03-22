@@ -105,21 +105,13 @@ def load_dim_address(self, stage_engine, dwh_engine):
     valid_to = today - pd.DateOffset(days=1)
     min_date = datetime(2000, 1, 1)
     chunksize = 10000
-    # offset = 0
 
-    # while True:
-    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
     with stage_engine.connect().execution_options(stream_results=True) as conn:
         for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
 
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
-
-            # if chunk.empty:
-            #     break
-            #
-            # offset += chunksize
 
             print('Processing chunk...')
 
@@ -250,21 +242,13 @@ def load_dim_customer(self, stage_engine, dwh_engine):
     valid_to = today - pd.DateOffset(days=1)
     min_date = datetime(2000, 1, 1)
     chunksize = 10000
-    # offset = 0
 
-    # while True:
-    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
     with stage_engine.connect().execution_options(stream_results=True) as conn:
         for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
 
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
-
-            # if chunk.empty:
-            #     break
-            #
-            # offset += chunksize
 
             print('Processing chunk...')
 
@@ -392,21 +376,13 @@ def load_dim_attribute(self, stage_engine, dwh_engine):
     print('Spracovanie `dim_attribute` sa začalo...')
 
     chunksize = 10000
-    # offset = 0
 
-    # while True:
-    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
     with stage_engine.connect().execution_options(stream_results=True) as conn:
         for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
 
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
-
-            # if chunk.empty:
-            #     break
-            #
-            # offset += chunksize
 
             print('Processing chunk...')
 
@@ -518,21 +494,13 @@ def load_dim_product(self, stage_engine, dwh_engine):
     valid_to = today - pd.DateOffset(days=1)
     min_date = datetime(2000, 1, 1)
     chunksize = 10000
-    # offset = 0
 
-    # while True:
-    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
     with stage_engine.connect().execution_options(stream_results=True) as conn:
         for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
 
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
-
-            # if chunk.empty:
-            #     break
-            #
-            # offset += chunksize
 
             print('Processing chunk...')
 
@@ -682,20 +650,12 @@ def load_bridge_product_attribute(self, stage_engine, dwh_engine):
     print('Spracovanie `bridge_product_attribute` sa začalo...')
 
     chunksize = 10000
-    # offset = 0
 
-    # while True:
-    #     chunk = pd.read_sql_query(text(query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
     with stage_engine.connect().execution_options(stream_results=True) as conn:
         for chunk in pd.read_sql_query(text(query), con=conn, chunksize=chunksize):
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
-
-            # if chunk.empty:
-            #     break
-            #
-            # offset += chunksize
 
             print('Processing chunk...')
 
@@ -748,21 +708,13 @@ def load_dim_order_state(self, stage_engine, dwh_engine):
     valid_to = today - pd.DateOffset(days=1)
     min_date = datetime(2000, 1, 1)
     chunksize = 10000
-    # offset = 0
 
-    # while True:
-    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
     with stage_engine.connect().execution_options(stream_results=True) as conn:
         for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
 
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
-
-            # if chunk.empty:
-            #     break
-            #
-            # offset += chunksize
 
             print('Processing chunk...')
 
@@ -871,21 +823,13 @@ def load_fact_cart_line(self, stage_engine, dwh_engine):
     print('Spracovanie `fact_cart_line` sa začalo...')
 
     chunksize = 10000
-    # offset = 0
 
-    # while True:
-    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
     with stage_engine.connect().execution_options(stream_results=True) as conn:
         for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
 
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
-
-            # if chunk.empty:
-            #     break
-            #
-            # offset += chunksize
 
             print('Processing chunk...')
 
@@ -1010,21 +954,13 @@ def load_fact_order_line(self, stage_engine, dwh_engine):
     print('Spracovanie `fact_order_line` sa začalo...')
 
     chunksize = 10000
-    # offset = 0
 
-    # while True:
-    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
     with stage_engine.connect().execution_options(stream_results=True) as conn:
         for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
 
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
-
-            # if chunk.empty:
-            #     break
-            #
-            # offset += chunksize
 
             print('Processing chunk...')
 
@@ -1141,21 +1077,13 @@ def load_fact_order_history(self, stage_engine, dwh_engine):
     print('Spracovanie `fact_order_history` sa začalo...')
 
     chunksize = 10000
-    # offset = 0
 
-    # while True:
-    #     chunk = pd.read_sql_query(text(stage_query.format(chunksize=str(chunksize), offset=str(offset))), stage_engine)
     with stage_engine.connect().execution_options(stream_results=True) as conn:
         for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
 
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
-
-            # if chunk.empty:
-            #     break
-            #
-            # offset += chunksize
 
             print('Processing chunk...')
 
