@@ -1,0 +1,11 @@
+broker_url = 'redis://127.0.0.1:6379/0'
+result_backend = 'redis://127.0.0.1:6379/1'
+task_serializer = 'json'
+result_serializer = 'json'
+accept_content = ['json']
+timezone = 'Europe/Bratislava'
+enable_utc = True
+PROD_DB_URI = 'mysql+pymysql://username:password@127.0.0.1/dbname'
+STAGE_DB_URI = 'postgresql+psycopg2://username:password@127.0.0.1/dma_stage?options=-csearch_path=dma_db_stage'
+DWH_DB_URI = 'postgresql+psycopg2://username:password@127.0.0.1/dma_dwh'
+REDIS_DB_URI = 'redis://127.0.0.1:6379/0'
