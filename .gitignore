@@ -2,6 +2,7 @@
 /.venv/
 /dmaenv/
 /__pycache__/
-/reports/files/
+/reports/files/*
+!/reports/files/.gitkeep
 celeryconfig.py
 config.py
