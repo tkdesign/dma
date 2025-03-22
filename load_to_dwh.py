@@ -588,7 +588,7 @@ def load_dim_product(self, stage_engine, dwh_engine):
                 with dwh_engine.begin() as conn:
                     conn.execute(insert_sql, {
                         'productid_bk': row['productid_bk'],
-                        'productattributeid_bk': row['productattributeid_bk_stage'] if not pd.isna(row['productattributeid_bk_stage']) else None,
+                        'productattributeid_bk': row['productattributeid_bk'] if not pd.isna(row['productattributeid_bk']) else None,
                         'productname': row['productname_stage'],
                         'manufacturer': row['manufacturer_stage'],
                         'defaultcategory': row['defaultcategory_stage'],
@@ -1263,7 +1263,7 @@ def load_fact_order(self, stage_engine, dwh_engine):
     print('Spracovanie `fact_order` sa začalo...')
 
     with dwh_engine.begin() as conn:
-        conn.execute(query)
+        conn.execute(text(query))
 
     if self is not None and self.is_aborted():
         print("Úloha zrušená")
