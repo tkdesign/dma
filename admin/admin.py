@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, render_template, redirect, url_fo
 from flask_login import current_user, login_required
 from sqlalchemy import create_engine, text
 
-from models import EtlLog, User
+from models import EtlLog, User, db
 from tasks import stage_reload_task, dwh_incremental_task
 from celery import chain, current_app
 from celery.result import AsyncResult
@@ -125,7 +125,7 @@ def user_edit(user_id):
     if not current_user.is_admin():
         return redirect(url_for('dashboard.dashboard_index'))
 
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if user:
         form = UserProfileForm()
         form.email.data = user.email
@@ -146,7 +146,7 @@ def user_update(user_id):
         return jsonify({"error": "Neoprávnený Prístup"}), 403
     form = UserProfileForm()
     if form.validate_on_submit():
-        user = User.query.get(user_id)
+        user = db.session.get(User, user_id)
         if not user:
             return render_template('admin/user.html', form=form, error='User not found', title='DMA - "Upraviť Používateľa', page='users')
 

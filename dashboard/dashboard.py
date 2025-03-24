@@ -1,7 +1,7 @@
 import datetime
 import calendar
 
-from flask import Blueprint, request, jsonify, render_template, redirect, url_for
+from flask import Blueprint, request, jsonify, render_template, redirect, url_for, Response
 from flask_login import current_user, login_required
 from sqlalchemy import create_engine, text
 import pandas as pd
@@ -218,7 +218,8 @@ def get_period_revenue():
 
     del revenue_df
     gc.collect()
-    return fig.to_json()
+    return Response(fig.to_json(), content_type='application/json')
+    # return fig.to_json()
 
 @dashboard_blueprint.route('/get-orders-heatmap', methods=['GET'])
 @login_required
@@ -292,7 +293,8 @@ def get_orders_heatmap():
     del heatmap_data, pivot_table
     gc.collect()
 
-    return fig.to_json()
+    return Response(fig.to_json(), content_type='application/json')
+    # return fig.to_json()
 
 @dashboard_blueprint.route('/get-gender-distribution', methods=['GET'])
 @login_required
@@ -343,7 +345,8 @@ def get_gender_distribution():
     del gender_df
     gc.collect()
 
-    return fig.to_json()
+    return Response(fig.to_json(), content_type='application/json')
+    # return fig.to_json()
 
 @dashboard_blueprint.route('/get-age-distribution', methods=['GET'])
 @login_required
@@ -400,4 +403,5 @@ def get_age_distribution():
     del age_df
     gc.collect()
 
-    return fig.to_json()
+    return Response(fig.to_json(), content_type='application/json')
+    # return fig.to_json()

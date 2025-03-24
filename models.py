@@ -49,7 +49,7 @@ class User(UserMixin, db.Model):
         db.session.commit()
 
     def get(user_id):
-        return User.query.get(user_id)
+        return db.session.get(User, user_id)
 
 class EtlLog(db.Model):
     __bind_key__ = 'stage'
@@ -78,7 +78,7 @@ class EtlLog(db.Model):
         db.session.commit()
 
     def get(log_id):
-        return EtlLog.query.get(log_id)
+        return db.session.get(EtlLog, log_id)
 
 class Report(db.Model):
     __bind_key__ = 'dwh'
@@ -112,4 +112,4 @@ class Report(db.Model):
         db.session.commit()
 
     def get(report_id):
-        return Report.query.get(report_id)
+        return db.session.get(Report, report_id)

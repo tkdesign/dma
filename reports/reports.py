@@ -9,7 +9,7 @@ import pandas as pd
 from auth.base_auth import check_auth, authenticate
 from celeryconfig import PROD_DB_URI, DWH_DB_URI
 from dashboard.dashboard import apply_period_filter
-from models import Report
+from models import Report, db
 from reportsconfig import filter_queries, reports_queries
 from tasks import build_report_task
 from playwright.sync_api import sync_playwright
@@ -305,7 +305,7 @@ def reports_data():
 @reports_blueprint.route('/view_report/<int:report_id>', methods=['GET'])
 @login_required
 def view_report(report_id):
-    report = Report.query.get(report_id)
+    report = db.session.get(Report, report_id)
 
     if report:
         if report.user_id != current_user.id and not current_user.is_admin():
@@ -333,7 +333,7 @@ def generate_pdf():
     if not report_id:
         return jsonify({"error": "Chýbajúce povinné parametre"}), 200
 
-    report = Report.query.get(report_id)
+    report = db.session.get(Report, report_id)
 
     if report:
         if report.user_id != current_user.id and not current_user.is_admin():
@@ -375,7 +375,8 @@ def get_csv_table(report_id):
     if not current_user.is_authenticated:
         return jsonify({"error": "Neautorizovaný prístup"}), 403
 
-    report = Report.query.get(report_id)
+    # report = Report.query.get(report_id)
+    report = db.session.get(Report, report_id)
 
     if report:
         if report.user_id != current_user.id and not current_user.is_admin():
@@ -417,7 +418,7 @@ def download_csv_report(report_id):
     if not current_user.is_authenticated:
         abort(403)
 
-    report = Report.query.get(report_id)
+    report = db.session.get(Report, report_id)
 
     if report:
         if report.user_id != current_user.id and not current_user.is_admin():
