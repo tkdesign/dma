@@ -46,10 +46,10 @@ def test_get_orders_heatmap(app, client, auth_headers):
     assert 'data' in data
     assert 'layout' in data
 
-def test_gender_distribution(app, client, auth_headers):
+def test_get_carrier_revenue_orders_distribution(app, client, auth_headers):
     autologin_user(app, client)
 
-    response = client.get('/get-gender-distribution', headers=auth_headers)
+    response = client.get('/get-carrier-revenue-orders-distribution', headers=auth_headers)
     assert response.status_code == 200
     assert response.is_json
 
@@ -57,10 +57,34 @@ def test_gender_distribution(app, client, auth_headers):
     assert 'data' in data
     assert 'layout' in data
 
-def test_get_age_distribution(app, client, auth_headers):
+def test_get_top_manufacturer_revenue_distribution(app, client, auth_headers):
     autologin_user(app, client)
 
-    response = client.get('/get-age-distribution', headers=auth_headers)
+    response = client.get('/get-top-manufacturer-revenue-distribution', headers=auth_headers)
+    assert response.status_code == 200
+    assert response.is_json
+
+    data = response.get_json()
+    assert 'data' in data
+    assert 'layout' in data
+
+
+def test_get_market_group_revenue_distribution(app, client, auth_headers):
+    autologin_user(app, client)
+
+    response = client.get('/get-top-market-group-revenue-distribution', headers=auth_headers)
+    assert response.status_code == 200
+    assert response.is_json
+
+    data = response.get_json()
+    assert 'data' in data
+    assert 'layout' in data
+
+
+def test_gender_distribution(app, client, auth_headers):
+    autologin_user(app, client)
+
+    response = client.get('/get-gender-distribution', headers=auth_headers)
     assert response.status_code == 200
     assert response.is_json
 
