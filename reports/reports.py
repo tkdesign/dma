@@ -125,7 +125,7 @@ def get_subfilter_options():
     date_filter_type = "year" if date_filter_type is None else date_filter_type
     date_filter_value = str(current_date.year) if date_filter_value is None else date_filter_value
     range_start = range_end = None
-    if (date_filter_type == "range"):
+    if date_filter_type == "range":
         range_start = request.args.get("filter_value_start")
         range_end = request.args.get("filter_value_end")
     query = apply_period_filter_to_dim(menu_query, date_filter_type, date_filter_value, range_start, range_end)
@@ -179,7 +179,7 @@ def create_report():
     date_filter_type = "year" if date_filter_type is None else date_filter_type
     date_filter_value = str(current_date.year) if date_filter_value is None else date_filter_value
     range_start = range_end = None
-    if (date_filter_type == "range"):
+    if date_filter_type == "range":
         range_start = request.json.get("start_date_filter")
         range_end = request.json.get("end_date_filter")
 

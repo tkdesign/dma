@@ -98,16 +98,20 @@
 
         loadChart('{{ url_for('dashboard.get_period_revenue') }}' + params, 'period-revenue-chart');
         loadChart('{{ url_for('dashboard.get_orders_heatmap') }}' + params, 'orders-heatmap-chart');
+        loadChart('{{ url_for('dashboard.get_carrier_revenue_orders_distribution') }}' + params, 'carrier-revenue-orders-distribution-chart');
+        loadChart('{{ url_for('dashboard.get_top_manufacturer_revenue_distribution') }}' + params, 'top-manufacturer-revenue-distribution-chart');
+        loadChart('{{ url_for('dashboard.get_market_group_revenue_distribution') }}' + params, 'market-group-revenue-distribution-chart');
         loadChart('{{ url_for('dashboard.get_gender_distribution') }}' + params, 'gender-distribution-chart');
-        loadChart('{{ url_for('dashboard.get_age_distribution') }}' + params, 'age-distribution-chart');
     }
 
     document.addEventListener('DOMContentLoaded', () => {
         const chartContainers = [
             'period-revenue-chart',
-            'gender-distribution-chart',
             'order-status-heatmap',
-            'age-distribution-chart'
+            'carrier-revenue-orders-distribution-chart',
+            'top-manufacturer-revenue-distribution-chart',
+            'market-group-revenue-distribution-chart',
+            'gender-distribution-chart',
         ];
         chartContainers.forEach(id => {
             const container = document.getElementById(id);

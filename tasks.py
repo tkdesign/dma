@@ -477,7 +477,7 @@ def build_report_task(self, *args, **kwargs):
         print("Úloha zrušená")
         return
 
-    if args is not None and len(args) == 0:
+    if args is None or len(args) == 0:
         print("Úloha zrušená")
         return
 

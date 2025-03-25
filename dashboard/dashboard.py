@@ -1,6 +1,7 @@
 import datetime
 import calendar
 
+import numpy as np
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, Response
 from flask_login import current_user, login_required
 from sqlalchemy import create_engine, text
@@ -16,6 +17,18 @@ dashboard_blueprint = Blueprint('dashboard', __name__)
 
 prod_engine = create_engine(PROD_DB_URI)
 dwh_engine = create_engine(DWH_DB_URI)
+
+def get_date_range_filter():
+    filter_type = request.args.get("filter_type")
+    filter_value = request.args.get("filter_value")
+    current_date = datetime.datetime.now()
+    filter_type = "year" if filter_type is None else filter_type
+    filter_value = str(current_date.year) if filter_value is None else filter_value
+    range_start = range_end = None
+    if filter_type == "range":
+        range_start = request.args.get("filter_value_start")
+        range_end = request.args.get("filter_value_end")
+    return current_date, filter_type, filter_value, range_end, range_start
 
 def apply_period_filter(original_query, current_date, filter_type, filter_value, range_start, range_end):
     current_year = current_date.year
@@ -109,24 +122,12 @@ def dashboard_index():
 @dashboard_blueprint.route('/get-summary', methods=['GET'])
 @login_required
 def get_summary():
-    filter_type = request.args.get("filter_type")
-    filter_value = request.args.get("filter_value")
+    current_date, filter_type, filter_value, range_end, range_start = get_date_range_filter()
 
-    current_date = datetime.datetime.now()
-
-    filter_type = "year" if filter_type is None else filter_type
-    filter_value = str(current_date.year) if filter_value is None else filter_value
-
-    range_start = range_end = None
-
-    if (filter_type == "range"):
-        range_start = request.args.get("filter_value_start")
-        range_end = request.args.get("filter_value_end")
+    query = apply_period_filter(dashboard_queries["carts_query"], current_date, filter_type, filter_value, range_start, range_end)
 
     with dwh_engine.connect() as conn:
-        carts_query = apply_period_filter(dashboard_queries["carts_query"], current_date, filter_type, filter_value, range_start, range_end)
-
-        carts_df = pd.read_sql_query(text(carts_query), conn)
+        carts_df = pd.read_sql_query(text(query), conn)
         carts_df['carts_count'] = carts_df['carts_count'].fillna(0)
         carts_count = carts_df['carts_count'].iloc[0]
         del carts_df
@@ -162,25 +163,13 @@ def get_summary():
 @dashboard_blueprint.route('/get-period-revenue', methods=['GET'])
 @login_required
 def get_period_revenue():
-    filter_type = request.args.get("filter_type")
-    filter_value = request.args.get("filter_value")
-
-    current_date = datetime.datetime.now()
-
-    filter_type = "year" if filter_type is None else filter_type
-    filter_value = str(current_date.year) if filter_value is None else filter_value
-
-    range_start = range_end = None
-
-    if filter_type == "range":
-        range_start = request.args.get("filter_value_start")
-        range_end = request.args.get("filter_value_end")
+    current_date, filter_type, filter_value, range_end, range_start = get_date_range_filter()
 
     query = apply_period_filter(dashboard_queries["period_revenue"], current_date, filter_type, filter_value, range_start, range_end)
 
     with dwh_engine.connect() as conn:
         revenue_df = pd.read_sql_query(text(query), conn)
-        revenue_df['total_revenue'] = revenue_df['total_revenue'].round(2)
+        revenue_df['total_revenue'] = revenue_df['total_revenue'].round(0)
 
     try:
         bar_trace = go.Bar(
@@ -190,7 +179,25 @@ def get_period_revenue():
             # marker=dict(color='rgb(55, 83, 109)')
         )
 
-        data = [bar_trace,]
+        x = np.arange(len(revenue_df))
+        y = revenue_df['total_revenue'].values
+
+        slope, intercept = 0, 0
+
+        if len(x) > 0 and len(y) > 0:
+            slope, intercept = np.polyfit(x, y, 1)
+
+        revenue_df['lin_reg'] = slope * x + intercept
+
+        trend_trace_lr = go.Scatter(
+            x=revenue_df['period'],
+            y=revenue_df['lin_reg'],
+            mode='lines',
+            name='Trend (lineárna reg.)',
+            line=dict(color='green', dash='dot')
+        )
+
+        data = [bar_trace, trend_trace_lr,]
 
         layout = go.Layout(
             title='Príjmy',
@@ -219,24 +226,11 @@ def get_period_revenue():
     del revenue_df
     gc.collect()
     return Response(fig.to_json(), content_type='application/json')
-    # return fig.to_json()
 
 @dashboard_blueprint.route('/get-orders-heatmap', methods=['GET'])
 @login_required
 def get_orders_heatmap():
-    filter_type = request.args.get("filter_type")
-    filter_value = request.args.get("filter_value")
-
-    current_date = datetime.datetime.now()
-
-    filter_type = "year" if filter_type is None else filter_type
-    filter_value = str(current_date.year) if filter_value is None else filter_value
-
-    range_start = range_end = None
-
-    if filter_type == "range":
-        range_start = request.args.get("filter_value_start")
-        range_end = request.args.get("filter_value_end")
+    current_date, filter_type, filter_value, range_end, range_start = get_date_range_filter()
 
     query = apply_period_filter(dashboard_queries["orders_heatmap"], current_date, filter_type, filter_value, range_start, range_end)
 
@@ -259,13 +253,13 @@ def get_orders_heatmap():
             x=day_order,
             y=time_order,
             colorscale="RdBu_r",
-            colorbar=dict(title="Počet objednávok")
+            colorbar=dict(title="Objednávky")
         )
 
         data = [heatmap_trace]
 
         layout = go.Layout(
-            title="Rozdelenie objednávok",
+            title="Distribúcia objednávok počas týždňa",
             height=400,
             xaxis=dict(
                 title="",
@@ -294,24 +288,155 @@ def get_orders_heatmap():
     gc.collect()
 
     return Response(fig.to_json(), content_type='application/json')
-    # return fig.to_json()
+
+@dashboard_blueprint.route('/get-carrier-revenue-orders-distribution', methods=['GET'])
+@login_required
+def get_carrier_revenue_orders_distribution():
+    current_date, filter_type, filter_value, range_end, range_start = get_date_range_filter()
+
+    query = apply_period_filter(dashboard_queries["carrier_revenue_orders_distribution"], current_date, filter_type, filter_value, range_start, range_end)
+
+    with dwh_engine.connect() as conn:
+        carrier_df = pd.read_sql_query(text(query), conn)
+        carrier_df['carrier'] = carrier_df['carrier'].fillna('Neuvedené')
+
+    try:
+        area_revenue = go.Scatter(
+            x=carrier_df['carrier'],
+            y=carrier_df['total_revenue'],
+            fill='tozeroy',
+            mode='lines+markers',
+            name='Príjmy',
+            line=dict(color='rgba(0, 100, 200, 0.7)', width=2)
+        )
+
+        area_count = go.Scatter(
+            x=carrier_df['carrier'],
+            y=carrier_df['total_count'],
+            fill='tozeroy',
+            mode='lines+markers',
+            name='Objednávky',
+            line=dict(color='rgba(255, 150, 0, 0.6)', width=2),
+            yaxis='y2',
+        )
+
+        data = [area_revenue, area_count,]
+
+        layout = go.Layout(
+            title='Príjmy / objednávky podľa dopravcu',
+            height=400,
+            xaxis=dict(title="Dopravca"),
+            yaxis=dict(title="Príjmy"),
+            yaxis2=dict(
+                title="Objednávky",
+                overlaying='y',
+                side='right'
+            ),
+            autosize=True,
+        )
+
+        fig = go.Figure(data=data, layout=layout)
+
+    except Exception as e:
+        return jsonify({})
+
+    del carrier_df
+    gc.collect()
+
+    return Response(fig.to_json(), content_type='application/json')
+
+@dashboard_blueprint.route('/get-top-manufacturer-revenue-distribution', methods=['GET'])
+@login_required
+def get_top_manufacturer_revenue_distribution():
+    current_date, filter_type, filter_value, range_end, range_start = get_date_range_filter()
+
+    query = apply_period_filter(dashboard_queries["top_manufacturer_revenue_distribution"], current_date, filter_type, filter_value,
+                                range_start, range_end)
+
+    with dwh_engine.connect() as conn:
+        tmr_df = pd.read_sql_query(text(query), conn)
+
+    try:
+        h_bar_trace = go.Bar(
+            x=tmr_df['total_revenue'],
+            y=tmr_df['manufacturer'],
+            orientation='h',
+            name='Príjmy',
+            # marker=dict(color='rgb(55, 83, 109)')
+        )
+
+        data = [h_bar_trace,]
+
+        layout = go.Layout(
+            title='Top 10 značiek podľa objemu predaja',
+            height=400,
+            grid=dict(rows=1, columns=1, pattern='independent'),
+            xaxis=dict(
+                title="Príjmy",
+                domain=[0, 1]
+            ),
+            yaxis=dict(
+                title="Značka",
+                domain=[0, 1],
+                autorange="reversed",
+            ),
+            autosize=True,
+        )
+
+        fig = go.Figure(data=data, layout=layout)
+    except Exception as e:
+        return jsonify({})
+
+    gc.collect()
+
+    return Response(fig.to_json(), content_type='application/json')
+
+@dashboard_blueprint.route('/get-top-market-group-revenue-distribution', methods=['GET'])
+@login_required
+def get_market_group_revenue_distribution():
+    current_date, filter_type, filter_value, range_end, range_start = get_date_range_filter()
+
+    query = apply_period_filter(dashboard_queries["market_group_revenue_distribution"], current_date, filter_type, filter_value,
+                                range_start, range_end)
+
+    with dwh_engine.connect() as conn:
+        tmgr_df = pd.read_sql_query(text(query), conn)
+        tmgr_df['total_revenue'] = tmgr_df['total_revenue'].round(0)
+        tmgr_df['parent'] = ''
+
+
+    try:
+        treemap_trace = go.Treemap(
+            labels=tmgr_df['market_group'],
+            parents=tmgr_df['parent'],
+            values=tmgr_df['total_revenue'],
+            hoverinfo="label+value+percent parent",
+            textinfo="label+value+percent parent",
+            marker=dict(
+                line=dict(width=0),
+            ),
+        )
+
+        data = [treemap_trace,]
+
+        layout = go.Layout(
+            title='Rozdelenie príjmov podľa marketingovej kategórie',
+            height=400,
+            autosize=True,
+        )
+
+        fig = go.Figure(data=data, layout=layout)
+    except Exception as e:
+        return jsonify({})
+
+    gc.collect()
+
+    return Response(fig.to_json(), content_type='application/json')
 
 @dashboard_blueprint.route('/get-gender-distribution', methods=['GET'])
 @login_required
 def get_gender_distribution():
-    filter_type = request.args.get("filter_type")
-    filter_value = request.args.get("filter_value")
-
-    current_date = datetime.datetime.now()
-
-    filter_type = "year" if filter_type is None else filter_type
-    filter_value = str(current_date.year) if filter_value is None else filter_value
-
-    range_start = range_end = None
-
-    if filter_type == "range":
-        range_start = request.args.get("filter_value_start")
-        range_end = request.args.get("filter_value_end")
+    current_date, filter_type, filter_value, range_end, range_start = get_date_range_filter()
 
     query = apply_period_filter(dashboard_queries["gender_distribution"], current_date, filter_type, filter_value, range_start, range_end)
 
@@ -326,7 +451,8 @@ def get_gender_distribution():
             name="Rozdelenie zákazníkov podľa pohlavia",
             textinfo="label+percent",
             hoverinfo="label+value+percent",
-            domain=dict(row=0, column=0)
+            domain=dict(row=0, column=0),
+            hole=0.5,
         )
 
         data = [pie_trace]
@@ -346,62 +472,3 @@ def get_gender_distribution():
     gc.collect()
 
     return Response(fig.to_json(), content_type='application/json')
-    # return fig.to_json()
-
-@dashboard_blueprint.route('/get-age-distribution', methods=['GET'])
-@login_required
-def get_age_distribution():
-    filter_type = request.args.get("filter_type")
-    filter_value = request.args.get("filter_value")
-
-    current_date = datetime.datetime.now()
-
-    filter_type = "year" if filter_type is None else filter_type
-    filter_value = str(current_date.year) if filter_value is None else filter_value
-
-    range_start = range_end = None
-
-    if filter_type == "range":
-        range_start = request.args.get("filter_value_start")
-        range_end = request.args.get("filter_value_end")
-
-    query = apply_period_filter(dashboard_queries["age_distribution"], current_date, filter_type, filter_value, range_start, range_end)
-
-    with dwh_engine.connect() as conn:
-        age_df = pd.read_sql_query(text(query), conn)
-        age_df['age_range'] = age_df['age_range'].fillna('Neuvedené')
-
-    try:
-        bar_trace = go.Bar(
-            x=age_df['age_range'],
-            y=age_df['avg_order_value'],
-            name='Priemerná suma objednávky',
-            # marker=dict(color='rgb(55, 83, 109)')
-        )
-
-        data = [bar_trace,]
-
-        layout = go.Layout(
-            title='Priemerná suma objednávky podľa veku zákazníkov',
-            height=400,
-            grid=dict(rows=1, columns=1, pattern='independent'),
-            xaxis=dict(
-                title="Vek",
-                domain=[0, 1]
-            ),
-            yaxis=dict(
-                title="Priemerná suma objednávky",
-                domain=[0, 1],
-            ),
-            autosize=True,
-        )
-
-        fig = go.Figure(data=data, layout=layout)
-    except Exception as e:
-        return jsonify({})
-
-    del age_df
-    gc.collect()
-
-    return Response(fig.to_json(), content_type='application/json')
-    # return fig.to_json()

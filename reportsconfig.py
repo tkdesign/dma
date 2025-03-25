@@ -38,10 +38,10 @@ dashboard_queries = {
     SELECT
         COUNT(fo.orderid_bk) AS orders_paid_count,
         SUM(fo.paid_tax_incl) AS total_revenue
-    FROM fact_order fo
-	JOIN fact_order_history foh ON foh.orderid_bk = fo.orderid_bk AND foh.orderstateid_bk = 2
+    FROM fact_order_history foh
+	JOIN fact_order fo ON foh.orderid_bk = fo.orderid_bk
 	JOIN dim_date dd ON fo.date_sk = dd.date_key
-    WHERE {filter}
+    WHERE {filter} AND foh.orderstateid_bk = 2
     """,
     "orders_query": """
     SELECT
@@ -54,14 +54,63 @@ dashboard_queries = {
     SELECT
         TO_CHAR(dd.date, '{date_format}') AS period,
         SUM(fo.paid_tax_incl) AS total_revenue
-    FROM fact_order fo
-    JOIN dim_date dd ON fo.date_sk = dd.date_key
-    JOIN fact_order_history foh ON foh.orderid_bk = fo.orderid_bk AND foh.orderstateid_bk = 2
-    WHERE {filter}
+    FROM fact_order_history foh
+    JOIN dim_date dd ON foh.date_sk = dd.date_key
+    JOIN fact_order fo ON foh.orderid_bk = fo.orderid_bk
+    WHERE {filter} AND foh.orderstateid_bk = 2
     GROUP BY period
     ORDER BY period;
     """,
     "orders_heatmap": """
+    WITH time_categories AS (
+        SELECT 
+            fo.orderid_bk,
+            dd.date,
+            CASE
+                WHEN dt.hour BETWEEN 6 AND 11 THEN 'Morning'
+                WHEN dt.hour BETWEEN 12 AND 17 THEN 'Afternoon'
+                WHEN dt.hour BETWEEN 18 AND 23 THEN 'Evening'
+                ELSE 'Night'
+            END AS time_of_day,
+            dd.day_name
+        FROM fact_order fo
+        JOIN dim_time dt ON fo.time_sk = dt.time_key
+        JOIN dim_date dd ON fo.date_sk = dd.date_key
+        WHERE {filter}
+    ),
+    daily_counts AS (
+        SELECT
+            date,
+            time_of_day,
+            day_name,
+            COUNT(*) AS order_count_per_day
+        FROM time_categories
+        GROUP BY date, time_of_day, day_name
+    )
+    SELECT
+        time_of_day,
+        day_name AS day_of_week,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY order_count_per_day) AS order_count
+    FROM daily_counts
+    GROUP BY time_of_day, day_name
+    ORDER BY 
+        CASE time_of_day 
+            WHEN 'Morning' THEN 1
+            WHEN 'Afternoon' THEN 2
+            WHEN 'Evening' THEN 3
+            WHEN 'Night' THEN 4
+        END,
+        CASE day_name 
+            WHEN 'Monday' THEN 1
+            WHEN 'Tuesday' THEN 2
+            WHEN 'Wednesday' THEN 3
+            WHEN 'Thursday' THEN 4
+            WHEN 'Friday' THEN 5
+            WHEN 'Saturday' THEN 6
+            WHEN 'Sunday' THEN 7
+        END;
+    """,
+    "orders_heatmap_total": """
     WITH time_categories AS (
         SELECT 
             fo.orderid_bk,
@@ -101,6 +150,54 @@ dashboard_queries = {
             WHEN 'Sunday' THEN 7
         END;
     """,
+    "carrier_revenue_orders_distribution": """
+    SELECT
+        fo.carrier,
+        SUM(fo.paid_tax_incl) AS total_revenue,
+        COUNT(fo.orderid_bk) as total_count
+    FROM fact_order_history foh
+    JOIN dim_date dd 
+        ON foh.date_sk = dd.date_key
+    JOIN fact_order fo
+        ON fo.orderid_bk = foh.orderid_bk
+    WHERE {filter}
+      AND foh.orderstateid_bk = 2
+    GROUP BY fo.carrier
+    ORDER BY total_revenue DESC;
+    """,
+    "top_manufacturer_revenue_distribution": """
+    SELECT
+        dp.manufacturer,
+        SUM(fol.amount_tax_incl) AS total_revenue
+    FROM fact_order_history foh
+    JOIN dim_date dd 
+        ON foh.date_sk = dd.date_key
+    JOIN fact_order_line fol 
+        ON fol.orderid_bk = foh.orderid_bk
+    JOIN dim_product dp 
+        ON fol.product_sk = dp.product_key
+    WHERE {filter}
+      AND foh.orderstateid_bk = 2
+    GROUP BY dp.manufacturer
+    ORDER BY total_revenue DESC
+    LIMIT 10;
+    """,
+    "market_group_revenue_distribution": """
+    SELECT
+        dp.market_group,
+        SUM(fol.amount_tax_incl) AS total_revenue
+    FROM fact_order_history foh
+    JOIN dim_date dd 
+        ON foh.date_sk = dd.date_key
+    JOIN fact_order_line fol 
+        ON fol.orderid_bk = foh.orderid_bk
+    JOIN dim_product dp 
+        ON fol.product_sk = dp.product_key
+    WHERE {filter}
+      AND foh.orderstateid_bk = 2
+    GROUP BY dp.market_group
+    ORDER BY total_revenue DESC;
+    """,
     "gender_distribution": """
     SELECT 
         dc.gender, 
@@ -108,28 +205,6 @@ dashboard_queries = {
     FROM dim_customer dc
     WHERE dc.active = TRUE AND {valid_customer_filter}
     GROUP BY dc.gender;
-    """,
-    "age_distribution": """
-    SELECT 
-            CASE 
-                WHEN dc.birthdate IS NULL THEN 'Neuvedené'
-                WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, dc.birthdate)) < 0 THEN 'Neuvedené'
-                ELSE FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, dc.birthdate)) / 10) * 10 || '-' || 
-                     (FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, dc.birthdate)) / 10) * 10 + 9)
-            END AS age_range,
-            AVG(fo.paid_tax_incl) AS avg_order_value
-        FROM fact_order fo
-        JOIN dim_customer dc ON fo.customer_sk = dc.customer_key
-        JOIN dim_date dd ON fo.date_sk = dd.date_key
-        WHERE {filter} AND {valid_customer_filter}
-        GROUP BY 
-            CASE 
-                WHEN dc.birthdate IS NULL THEN 'Neuvedené'
-                WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, dc.birthdate)) < 0 THEN 'Neuvedené'
-                ELSE FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, dc.birthdate)) / 10) * 10 || '-' || 
-                     (FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, dc.birthdate)) / 10) * 10 + 9)
-            END
-        ORDER BY age_range;
     """,
 }
 
