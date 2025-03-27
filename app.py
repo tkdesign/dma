@@ -31,6 +31,7 @@ def create_app(config_override=None):
         auth = request.authorization
         if not auth or not check_auth(auth.username, auth.password):
             return authenticate()
+
     @home_bp.route('/')
     def home():
         if current_user.is_authenticated:
