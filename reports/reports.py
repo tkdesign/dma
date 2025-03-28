@@ -159,13 +159,20 @@ def create_report():
 
     for subfilter_key, subfilter_value  in subfilters.items():
         if subfilter_key in reports_queries[report_type]["subfilters"]:
-            if subfilter_value != "[Any]":
+            if subfilter_value != "[Any]" and subfilter_value != "[Not specified]":
                 if subfilter_key == "market_group":
                     where_clause.append(f"dp.market_group = '{subfilter_value}'")
                 elif subfilter_key == "market_subgroup":
                     where_clause.append(f"dp.market_subgroup = '{subfilter_value}'")
                 elif subfilter_key == "market_gender":
                     where_clause.append(f"dp.market_gender = '{subfilter_value}'")
+            elif subfilter_value == "[Not specified]":
+                if subfilter_key == "market_group":
+                    where_clause.append(f"dp.market_group IS NULL")
+                elif subfilter_key == "market_subgroup":
+                    where_clause.append(f"dp.market_subgroup IS NULL")
+                elif subfilter_key == "market_gender":
+                    where_clause.append(f"dp.market_gender IS NULL")
             report_subfilters.append({subfilter_key: {'title': reports_queries[report_type]["subfilters"][subfilter_key]['title'],'value': subfilter_value}})
 
     if len(where_clause) == 0:

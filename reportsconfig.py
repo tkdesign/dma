@@ -262,7 +262,7 @@ reports_queries = {
             "market_group": {
                 "title": "Marketingová kampaň",
                 "menu_query": """
-                SELECT market_group
+                SELECT COALESCE(p.market_group, '[Not specified]') AS market_group
                 FROM dim_product p
                 WHERE {filter}
                 GROUP BY market_group
@@ -271,7 +271,7 @@ reports_queries = {
             "market_subgroup": {
                 "title": "Marketingová podkampaň",
                 "menu_query": """
-                SELECT market_subgroup
+                SELECT COALESCE(p.market_subgroup, '[Not specified]') AS market_subgroup
                 FROM dim_product p
                 WHERE {filter}
                 GROUP BY market_subgroup;
@@ -301,7 +301,7 @@ reports_queries = {
             "market_gender": {
                 "title": "Rodová kategória",
                 "menu_query": """
-                SELECT market_gender
+                SELECT COALESCE(p.market_gender, '[Not specified]') AS market_gender
                 FROM dim_product p
                 WHERE {filter}
                 GROUP BY p.market_gender;
