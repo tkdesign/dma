@@ -184,7 +184,9 @@ def get_period_revenue():
 
         slope, intercept = 0, 0
 
-        if len(x) > 0 and len(y) > 0:
+        if len(x) < 2:
+            intercept = y[0] if len(y) > 0 else 0
+        elif len(y) > 0:
             slope, intercept = np.polyfit(x, y, 1)
 
         revenue_df['lin_reg'] = slope * x + intercept

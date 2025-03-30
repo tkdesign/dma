@@ -817,7 +817,7 @@ def load_fact_cart_line(self, stage_engine, dwh_engine):
     FROM dma_stage.dma_db_stage.sg_cart_product sgcp 
     JOIN dma_stage.dma_db_stage.sg_cart sgc 
         ON sgc.id_cart = sgcp.id_cart
-    ORDER BY sgcp.date_add;
+    ORDER BY sgc.date_add;
     """
 
     print('Spracovanie `fact_cart_line` sa začalo...')
@@ -838,21 +838,28 @@ def load_fact_cart_line(self, stage_engine, dwh_engine):
             chunk['dc_customer_key'] = chunk['dc_customer_key'].fillna(0).astype('int64')
 
             key_list = list(zip(chunk['sgcp_id_cart'], chunk['dp_product_key'], chunk['dc_customer_key']))
+            values_clause = ", ".join(f"({int(a)}, {int(b)}, {int(c)})" for a, b, c in key_list)
+            query_fact = f"""
+            SELECT st.cartid_bk, st.product_sk, st.customer_sk
+            FROM (
+                VALUES {values_clause}
+            ) AS st(cartid_bk, product_sk, customer_sk)
+            LEFT JOIN dma_dwh.public.fact_cart_line fc
+              ON st.cartid_bk = fc.cartid_bk
+              AND st.product_sk = fc.product_sk
+              AND st.customer_sk = fc.customer_sk
+            WHERE fc.cartid_bk IS NULL;
+            """
 
-            query_fact = text("""
-            SELECT cartid_bk, product_sk, customer_sk
-            FROM dma_dwh.public.fact_cart_line
-            WHERE (cartid_bk, product_sk, customer_sk) IN (
-                SELECT * FROM unnest(:keys) AS t(cartid_bk int, product_sk int, customer_sk int)
-            )
-            """)
-            df_fact = pd.read_sql_query(query_fact, dwh_engine, params={"keys": key_list})
-
+            df_fact = pd.read_sql_query(text(query_fact), dwh_engine, params={"keys": key_list})
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
 
-            if df_fact.empty:
+            if not df_fact.empty:
+                existing_keys = set(df_fact[['cartid_bk', 'product_sk', 'customer_sk']].itertuples(index=False, name=None))
+                chunk = chunk[chunk.apply(lambda row: (row['sgcp_id_cart'], row['dp_product_key'], row['dc_customer_key']) in existing_keys, axis=1)]
+
                 chunk['sgc_date_add'] = pd.to_datetime(chunk['sgc_date_add'], utc=True)
                 date_add_list = chunk['sgc_date_add'].dt.date.tolist()
 
@@ -957,7 +964,6 @@ def load_fact_order_line(self, stage_engine, dwh_engine):
 
     with stage_engine.connect().execution_options(stream_results=True) as conn:
         for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
-
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
@@ -968,21 +974,29 @@ def load_fact_order_line(self, stage_engine, dwh_engine):
             chunk['dp_product_key'] = chunk['dp_product_key'].fillna(0).astype('int64')
 
             key_list = list(zip(chunk['sgod_id_order'], chunk['sgod_id_order_detail'], chunk['dp_product_key']))
+            values_clause = ", ".join(f"({int(a)}, {int(b)}, {int(c)})" for a, b, c in key_list)
+            query_fact = f"""
+            SELECT st.orderid_bk, st.orderdetailid_bk, st.product_sk
+            FROM (
+                VALUES {values_clause}
+            ) AS st(orderid_bk, orderdetailid_bk, product_sk)
+            LEFT JOIN dma_dwh.public.fact_order_line fol
+              ON st.orderid_bk = fol.orderid_bk
+              AND st.orderdetailid_bk = fol.orderdetailid_bk
+              AND st.product_sk = fol.product_sk
+            WHERE fol.orderid_bk IS NULL;
+            """
 
-            query_fact = text("""
-            SELECT orderid_bk, orderdetailid_bk, product_sk
-            FROM dma_dwh.public.fact_order_line
-            WHERE (orderid_bk, orderdetailid_bk, product_sk) IN (
-                SELECT * FROM unnest(:keys) AS t(orderid_bk int, orderdetailid_bk int, product_sk int)
-            )
-            """)
-            df_fact = pd.read_sql_query(query_fact, dwh_engine, params={"keys": key_list})
+            df_fact = pd.read_sql_query(text(query_fact), dwh_engine, params={"keys": key_list})
 
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
 
-            if df_fact.empty:
+            if not df_fact.empty:
+                existing_keys = set(df_fact[['orderid_bk', 'orderdetailid_bk', 'product_sk']].itertuples(index=False, name=None))
+                chunk = chunk[chunk.apply(lambda row: (row['sgod_id_order'], row['sgod_id_order_detail'], row['dp_product_key']) in existing_keys, axis=1)]
+
                 chunk['sgo_carrier'] = chunk['sgo_carrier'].replace('', None)
 
                 chunk['sgo_date_add'] = pd.to_datetime(chunk['sgo_date_add'], utc=True)
@@ -1080,7 +1094,6 @@ def load_fact_order_history(self, stage_engine, dwh_engine):
 
     with stage_engine.connect().execution_options(stream_results=True) as conn:
         for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
-
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
@@ -1088,21 +1101,27 @@ def load_fact_order_history(self, stage_engine, dwh_engine):
             print('Processing chunk...')
 
             key_list = list(zip(chunk['sgoh_id_order_history'], chunk['sgoh_id_order'], chunk['sgoh_id_order_state']))
+            values_clause = ", ".join(f"({int(a)}, {int(b)}, {int(c)})" for a, b, c in key_list)
+            query_fact = f"""
+            SELECT st.orderhistoryid_bk, st.orderid_bk, st.orderstateid_bk
+            FROM (
+                VALUES {values_clause}
+            ) AS st(orderhistoryid_bk, orderid_bk, orderstateid_bk)
+            LEFT JOIN dma_dwh.public.fact_order_history fo
+                ON st.orderhistoryid_bk = fo.orderhistoryid_bk
+                AND st.orderid_bk = fo.orderid_bk
+                AND st.orderstateid_bk = fo.orderstateid_bk
+                WHERE fo.orderhistoryid_bk IS NULL;
+            """
 
-            query_fact = text("""
-            SELECT orderhistoryid_bk, orderid_bk, orderstateid_bk
-            FROM dma_dwh.public.fact_order_history
-            WHERE (orderhistoryid_bk, orderid_bk, orderstateid_bk) IN (
-                SELECT * FROM unnest(:keys) AS t(orderhistoryid_bk int, orderid_bk int, orderstateid_bk int)
-            )
-            """)
-            df_fact = pd.read_sql_query(query_fact, dwh_engine, params={"keys": key_list})
-
+            df_fact = pd.read_sql_query(text(query_fact), dwh_engine, params={"keys": key_list})
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
 
-            if df_fact.empty:
+            if not df_fact.empty:
+                existing_keys = set(df_fact[['orderhistoryid_bk', 'orderid_bk', 'orderstateid_bk']].itertuples(index=False, name=None))
+                chunk = chunk[chunk.apply(lambda row: (row['sgoh_id_order_history'], row['sgoh_id_order'], row['sgoh_id_order_state']) in existing_keys, axis=1)]
 
                 chunk['sgoh_date_add'] = pd.to_datetime(chunk['sgoh_date_add'], utc=True)
                 date_add_list = chunk['sgoh_date_add'].dt.date.tolist()
