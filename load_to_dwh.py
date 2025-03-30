@@ -121,7 +121,7 @@ def load_dim_address(self, stage_engine, dwh_engine):
 
             chunk['row_hash_stage'] = chunk.apply(calc_hash_dim_address, axis=1)
             business_keys = chunk['addressid_bk'].unique().tolist()
-            query_dim = text("SELECT * FROM dma_dwh.public.dim_address WHERE addressid_bk IN :keys")
+            query_dim = text("SELECT * FROM dma_dwh.public.dim_address WHERE addressid_bk IN :keys and valid_to = '9999-12-31';")
             df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys": tuple(business_keys)})
 
             if self is not None and self.is_aborted():
@@ -186,7 +186,6 @@ def load_dim_address(self, stage_engine, dwh_engine):
                 INSERT INTO dma_dwh.public.dim_address (addressid_bk, customerid_bk, country, state, city, zipcode, valid_from, valid_to)
                 VALUES (:addressid_bk, :customerid_bk, :country, :state, :city, :zipcode, :valid_from, '9999-12-31');
                 """)
-                valid_from = row['valid_from'] if not pd.isna(row['valid_from']) else min_date
                 with dwh_engine.begin() as conn:
                     conn.execute(insert_sql, {
                         'addressid_bk': row['addressid_bk'],
@@ -195,7 +194,7 @@ def load_dim_address(self, stage_engine, dwh_engine):
                         'state': row['state_stage'],
                         'city': row['city_stage'],
                         'zipcode': row['zipcode_stage'],
-                        'valid_from': valid_from,
+                        'valid_from': today,
                     })
 
                 if self is not None and self.is_aborted():
@@ -257,7 +256,7 @@ def load_dim_customer(self, stage_engine, dwh_engine):
             chunk['row_hash_stage'] = chunk.apply(calc_hash_dim_customer, axis=1)
             business_keys = chunk['customerid_bk'].unique().tolist()
 
-            query_dim = text("SELECT * FROM dma_dwh.public.dim_customer WHERE customerid_bk IN :keys")
+            query_dim = text("SELECT * FROM dma_dwh.public.dim_customer WHERE customerid_bk IN :keys and valid_to = '9999-12-31';")
             df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys": tuple(business_keys)})
 
             if self is not None and self.is_aborted():
@@ -324,7 +323,6 @@ def load_dim_customer(self, stage_engine, dwh_engine):
                 INSERT INTO dma_dwh.public.dim_customer (customerid_bk, hashedemail, defaultgroup, birthdate, gender, businessaccount, active, valid_from, valid_to)
                 VALUES (:customerid_bk, :hashedemail, :defaultgroup, :birthdate, :gender, :businessaccount, :active, :valid_from, '9999-12-31');
                 """)
-                valid_from = row['valid_from'] if not pd.isna(row['valid_from']) else min_date
                 with dwh_engine.begin() as conn:
                     conn.execute(insert_sql, {
                         'customerid_bk': row['customerid_bk'],
@@ -334,7 +332,7 @@ def load_dim_customer(self, stage_engine, dwh_engine):
                         'gender': row['gender_stage'],
                         'businessaccount': row['businessaccount_stage'],
                         'active': row['active_stage'],
-                        'valid_from': valid_from,
+                        'valid_from': today,
                     })
 
                 if self is not None and self.is_aborted():
@@ -392,7 +390,7 @@ def load_dim_attribute(self, stage_engine, dwh_engine):
             chunk['row_hash_stage'] = chunk.apply(calc_hash_dim_attribute, axis=1)
             business_keys = chunk['attributeid_bk'].unique().tolist()
 
-            query_dim = text("SELECT * FROM dma_dwh.public.dim_attribute WHERE attributeid_bk IN :keys")
+            query_dim = text("SELECT * FROM dma_dwh.public.dim_attribute WHERE attributeid_bk IN :keys;")
             df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys": tuple(business_keys)})
 
             if self is not None and self.is_aborted():
@@ -513,14 +511,22 @@ def load_dim_product(self, stage_engine, dwh_engine):
 
             chunk['row_hash_stage'] = chunk.apply(calc_hash_dim_product, axis=1)
             keys_pairs = list(zip(chunk['productid_bk'], chunk['productattributeid_bk']))
+            values_clause = ", ".join(f"({a}, {b})" for a, b in keys_pairs)
 
-            query_dim = text("""
+            # query_dim = text("""
+            # SELECT * FROM dma_dwh.public.dim_product
+            # WHERE (productid_bk, productattributeid_bk) IN (
+            #     SELECT * FROM unnest(:keys_pairs) AS t(productid_bk int, productattributeid_bk int)
+            # )
+            # """)
+            # df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys_pairs": keys_pairs})
+            query_dim = f"""
             SELECT * FROM dma_dwh.public.dim_product
             WHERE (productid_bk, productattributeid_bk) IN (
-                SELECT * FROM unnest(:keys_pairs) AS t(productid_bk int, productattributeid_bk int)
+                VALUES {values_clause}
             )
-            """)
-            df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys_pairs": keys_pairs})
+            """
+            df_dim = pd.read_sql_query(text(query_dim), dwh_engine)
 
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
@@ -592,7 +598,8 @@ def load_dim_product(self, stage_engine, dwh_engine):
                 INSERT INTO dma_dwh.public.dim_product (productid_bk, productattributeid_bk, productname, manufacturer, defaultcategory, market_group, market_subgroup, market_gender, price, active, valid_from, valid_to)
                 VALUES (:productid_bk, :productattributeid_bk, :productname, :manufacturer, :defaultcategory, :market_group, :market_subgroup, :market_gender, :price, :active, :valid_from, '9999-12-31');
                 """)
-                valid_from = row['valid_from_stage'] if not pd.isna(row['valid_from_stage']) else min_date
+                # valid_from = row['valid_from_stage'] if not pd.isna(row['valid_from_stage']) else min_date
+                valid_from = today.strftime("%Y-%m-%d")
                 with dwh_engine.begin() as conn:
                     conn.execute(insert_sql, {
                         'productid_bk': row['productid_bk'],
@@ -605,7 +612,7 @@ def load_dim_product(self, stage_engine, dwh_engine):
                         'market_gender': row['market_gender_stage'],
                         'price': row['price_stage'],
                         'active': row['active_stage'],
-                        'valid_from': valid_from,
+                        'valid_from': today,
                     })
 
                 if self is not None and self.is_aborted():
@@ -721,7 +728,7 @@ def load_dim_order_state(self, stage_engine, dwh_engine):
             chunk['row_hash_stage'] = chunk.apply(calc_hash_load_dim_order_state, axis=1)
             business_keys = chunk['orderstateid_bk'].unique().tolist()
 
-            query_dim = text("SELECT * FROM dma_dwh.public.dim_order_state WHERE orderstateid_bk IN :keys")
+            query_dim = text("SELECT * FROM dma_dwh.public.dim_order_state WHERE orderstateid_bk IN :keys and valid_to = '9999-12-31';")
             df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys": tuple(business_keys)})
 
             if self is not None and self.is_aborted():
@@ -778,7 +785,7 @@ def load_dim_order_state(self, stage_engine, dwh_engine):
                     conn.execute(insert_sql, {
                         'orderstateid_bk': row['orderstateid_bk'],
                         'current_state': row['current_state_stage'],
-                        'valid_from': min_date,
+                        'valid_from': today,
                     })
 
                 if self is not None and self.is_aborted():
@@ -851,7 +858,7 @@ def load_fact_cart_line(self, stage_engine, dwh_engine):
             WHERE fc.cartid_bk IS NULL;
             """
 
-            df_fact = pd.read_sql_query(text(query_fact), dwh_engine, params={"keys": key_list})
+            df_fact = pd.read_sql_query(text(query_fact), dwh_engine)
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
@@ -987,7 +994,7 @@ def load_fact_order_line(self, stage_engine, dwh_engine):
             WHERE fol.orderid_bk IS NULL;
             """
 
-            df_fact = pd.read_sql_query(text(query_fact), dwh_engine, params={"keys": key_list})
+            df_fact = pd.read_sql_query(text(query_fact), dwh_engine)
 
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
@@ -1114,7 +1121,7 @@ def load_fact_order_history(self, stage_engine, dwh_engine):
                 WHERE fo.orderhistoryid_bk IS NULL;
             """
 
-            df_fact = pd.read_sql_query(text(query_fact), dwh_engine, params={"keys": key_list})
+            df_fact = pd.read_sql_query(text(query_fact), dwh_engine)
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
