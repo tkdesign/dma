@@ -61,7 +61,7 @@ def load_dim_time(self, stage_engine, dwh_engine):
         print("Úloha zrušená")
         return
 
-    print('Start `dim_time` sa začalo...')
+    print('Spracovanie `dim_time` sa začalo...')
 
     df_time = create_time_frame()
 
@@ -108,12 +108,11 @@ def load_dim_address(self, stage_engine, dwh_engine):
 
     with stage_engine.connect().execution_options(stream_results=True) as conn:
         for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
-
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
 
-            print('Processing chunk...')
+            print('Spracovanie bloku...')
 
             chunk['country'] = chunk['country'].replace('', None)
             chunk['state'] = chunk['state'].replace('', None)
@@ -244,12 +243,11 @@ def load_dim_customer(self, stage_engine, dwh_engine):
 
     with stage_engine.connect().execution_options(stream_results=True) as conn:
         for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
-
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
 
-            print('Processing chunk...')
+            print('Spracovanie bloku...')
 
             chunk['gender'] = chunk['gender'].replace('[neuvádzam]', None)
 
@@ -377,12 +375,11 @@ def load_dim_attribute(self, stage_engine, dwh_engine):
 
     with stage_engine.connect().execution_options(stream_results=True) as conn:
         for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
-
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
 
-            print('Processing chunk...')
+            print('Spracovanie bloku...')
 
             chunk['attribute_name'] = chunk['attribute_name'].replace('', 'Unknown').fillna('Unknown')
             chunk['attribute_group'] = chunk['attribute_group'].replace('', None)
@@ -495,12 +492,11 @@ def load_dim_product(self, stage_engine, dwh_engine):
 
     with stage_engine.connect().execution_options(stream_results=True) as conn:
         for chunk in pd.read_sql_query(text(stage_query), con=conn, chunksize=chunksize):
-
             if self is not None and self.is_aborted():
                 print("Úloha zrušená")
                 return
 
-            print('Processing chunk...')
+            print('Spracovanie bloku...')
 
             chunk['manufacturer'] = chunk['manufacturer'].replace('', None)
             chunk['defaultcategory'] = chunk['defaultcategory'].replace('', None)
@@ -513,13 +509,6 @@ def load_dim_product(self, stage_engine, dwh_engine):
             keys_pairs = list(zip(chunk['productid_bk'], chunk['productattributeid_bk']))
             values_clause = ", ".join(f"({a}, {b})" for a, b in keys_pairs)
 
-            # query_dim = text("""
-            # SELECT * FROM dma_dwh.public.dim_product
-            # WHERE (productid_bk, productattributeid_bk) IN (
-            #     SELECT * FROM unnest(:keys_pairs) AS t(productid_bk int, productattributeid_bk int)
-            # )
-            # """)
-            # df_dim = pd.read_sql_query(query_dim, dwh_engine, params={"keys_pairs": keys_pairs})
             query_dim = f"""
             SELECT * FROM dma_dwh.public.dim_product
             WHERE (productid_bk, productattributeid_bk) IN (
@@ -598,8 +587,6 @@ def load_dim_product(self, stage_engine, dwh_engine):
                 INSERT INTO dma_dwh.public.dim_product (productid_bk, productattributeid_bk, productname, manufacturer, defaultcategory, market_group, market_subgroup, market_gender, price, active, valid_from, valid_to)
                 VALUES (:productid_bk, :productattributeid_bk, :productname, :manufacturer, :defaultcategory, :market_group, :market_subgroup, :market_gender, :price, :active, :valid_from, '9999-12-31');
                 """)
-                # valid_from = row['valid_from_stage'] if not pd.isna(row['valid_from_stage']) else min_date
-                valid_from = today.strftime("%Y-%m-%d")
                 with dwh_engine.begin() as conn:
                     conn.execute(insert_sql, {
                         'productid_bk': row['productid_bk'],
@@ -664,7 +651,7 @@ def load_bridge_product_attribute(self, stage_engine, dwh_engine):
                 print("Úloha zrušená")
                 return
 
-            print('Processing chunk...')
+            print('Spracovanie bloku...')
 
             insert_sql = text("""
             INSERT INTO dma_dwh.public.bridge_product_attribute (product_sk, attribute_sk, productattributeid_bk, attributeid_bk)
@@ -723,7 +710,7 @@ def load_dim_order_state(self, stage_engine, dwh_engine):
                 print("Úloha zrušená")
                 return
 
-            print('Processing chunk...')
+            print('Spracovanie bloku...')
 
             chunk['row_hash_stage'] = chunk.apply(calc_hash_load_dim_order_state, axis=1)
             business_keys = chunk['orderstateid_bk'].unique().tolist()
@@ -838,7 +825,7 @@ def load_fact_cart_line(self, stage_engine, dwh_engine):
                 print("Úloha zrušená")
                 return
 
-            print('Processing chunk...')
+            print('Spracovanie bloku...')
 
             chunk = chunk[chunk['dp_product_key'].notnull() & chunk['dc_customer_key'].notnull()]
             chunk['dp_product_key'] = chunk['dp_product_key'].fillna(0).astype('int64')
@@ -975,7 +962,7 @@ def load_fact_order_line(self, stage_engine, dwh_engine):
                 print("Úloha zrušená")
                 return
 
-            print('Processing chunk...')
+            print('Spracovanie bloku...')
 
             chunk = chunk[chunk['dp_product_key'].notnull() & chunk['dc_customer_key'].notnull()]
             chunk['dp_product_key'] = chunk['dp_product_key'].fillna(0).astype('int64')
@@ -1105,7 +1092,7 @@ def load_fact_order_history(self, stage_engine, dwh_engine):
                 print("Úloha zrušená")
                 return
 
-            print('Processing chunk...')
+            print('Spracovanie bloku...')
 
             key_list = list(zip(chunk['sgoh_id_order_history'], chunk['sgoh_id_order'], chunk['sgoh_id_order_state']))
             values_clause = ", ".join(f"({int(a)}, {int(b)}, {int(c)})" for a, b, c in key_list)
