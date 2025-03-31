@@ -26,8 +26,6 @@ def test_get_period_revenue(app, client, auth_headers):
     autologin_user(app, client)
 
     response = client.get('/get-period-revenue', headers=auth_headers)
-    print("Content-Type:", response.headers.get("Content-Type"))
-    print("Raw response:", response.data.decode())
     assert response.status_code == 200
     assert response.is_json
 

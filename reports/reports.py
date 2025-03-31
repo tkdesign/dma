@@ -31,45 +31,40 @@ def apply_period_filter_to_dim(original_query, filter_type, filter_value, range_
             filter_value_year = int(filter_value_parts[0])
             filter_value_month = int(filter_value_parts[1])
         except ValueError:
-            filter_value_month = current_month
             filter_value_year = current_year
-        query = original_query.format(
-            filter="p.valid_from <= (date_trunc('month', date '{year}-{month}-01') + interval '1 month - 1 day') AND p.valid_to >= date_trunc('month', date '{year}-{month}-01')".format(year=filter_value_year, month=filter_value_month),
-        )
+            filter_value_month = current_month
+        date_start = datetime.date(filter_value_year, filter_value_month, 1)
+        date_end = datetime.date(filter_value_year, filter_value_month + 1, 1) - datetime.timedelta(days=1) if filter_value_month < 12 else datetime.date(filter_value_year, 12, 31)
     elif filter_type == "quarter" and filter_value:
         try:
             filter_value_parts = filter_value.split("-")
             filter_value_year = int(filter_value_parts[0])
             filter_value_quarter = int(filter_value_parts[1])
         except ValueError:
-            filter_value_quarter = current_quarter
             filter_value_year = current_year
-        query = original_query.format(
-            filter="p.valid_from <= (make_date({year}, ({quarter} - 1) * 3 + 1, 1) + interval '3 months - 1 day') AND p.valid_to >= make_date({year}, ({quarter} - 1) * 3 + 1, 1)".format(year=filter_value_year, quarter=filter_value_quarter))
+            filter_value_quarter = current_quarter
+        start_month = (filter_value_quarter - 1) * 3 + 1
+        date_start = datetime.date(filter_value_year, start_month, 1)
+        date_end = datetime.date(filter_value_year + 1, 12, 31) if filter_value_quarter == 4 else datetime.date(filter_value_year, start_month + 3, 1) - datetime.timedelta(days=1)
     elif filter_type == "year" and filter_value:
         try:
             filter_value = int(filter_value)
         except ValueError:
             filter_value = 0
-        query = original_query.format(
-            filter="p.valid_from <= make_date({year}, 12, 31) AND p.valid_to >= make_date({year}, 1, 1)".format(year=filter_value),
-        )
+        date_start = datetime.date(filter_value, 1, 1)
+        date_end = datetime.date(filter_value, 12, 31)
     elif filter_type == "range" and range_start or range_end:
         try:
-            date_start = range_start
-            filter_value_start = datetime.datetime.strptime(date_start, "%Y-%m-%d").date()
-            date_end = range_end
-            filter_value_end = datetime.datetime.strptime(date_end, "%Y-%m-%d").date()
+            date_start = datetime.datetime.strptime(range_start, "%Y-%m-%d").date()
+            date_end = datetime.datetime.strptime(range_end, "%Y-%m-%d").date()
         except ValueError:
-            filter_value_start = filter_value_end = datetime.datetime.strptime(current_date, "%Y-%m-%d").date()
-        query = original_query.format(
-            filter="p.valid_from <= {end_date} AND p.valid_to >= {start_date}".format(start_date=filter_value_start, end_date=filter_value_end),
-        )
+            date_start = date_end = current_date
     else:
         current_year = datetime.datetime.now().year
-        query = original_query.format(
-            filter="p.valid_from <= make_date({year}, 12, 31) AND p.valid_to >= make_date({year}, 1, 1)".format(year=current_year),
-        )
+        date_start = datetime.date(current_year, 1, 1).strftime('%Y-%m-%d')
+        date_end = datetime.date(current_year, 12, 31).strftime('%Y-%m-%d')
+
+    query = original_query.format(filter=f"p.valid_from <= DATE '{date_end}' AND p.valid_to >= DATE '{date_start}'")
     return query
 
 @reports_blueprint.before_request
