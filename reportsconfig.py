@@ -110,46 +110,6 @@ dashboard_queries = {
             WHEN 'Sunday' THEN 7
         END;
     """,
-    "orders_heatmap_total": """
-    WITH time_categories AS (
-        SELECT 
-            fo.orderid_bk,
-            CASE
-                WHEN dt.hour BETWEEN 6 AND 11 THEN 'Morning'
-                WHEN dt.hour BETWEEN 12 AND 17 THEN 'Afternoon'
-                WHEN dt.hour BETWEEN 18 AND 23 THEN 'Evening'
-                ELSE 'Night'
-            END AS time_of_day,
-            dd.day_of_week,
-            dd.day_name
-        FROM fact_order fo
-        JOIN dim_time dt ON fo.time_sk = dt.time_key
-        JOIN dim_date dd ON fo.date_sk = dd.date_key
-        WHERE {filter}
-    )
-    SELECT
-        time_of_day,
-        day_name AS day_of_week,
-        COUNT(*) AS order_count
-    FROM time_categories
-    GROUP BY time_of_day, day_name, day_of_week
-    ORDER BY 
-        CASE time_of_day 
-            WHEN 'Morning' THEN 1
-            WHEN 'Afternoon' THEN 2
-            WHEN 'Evening' THEN 3
-            WHEN 'Night' THEN 4
-        END,
-        CASE day_name 
-            WHEN 'Monday' THEN 1
-            WHEN 'Tuesday' THEN 2
-            WHEN 'Wednesday' THEN 3
-            WHEN 'Thursday' THEN 4
-            WHEN 'Friday' THEN 5
-            WHEN 'Saturday' THEN 6
-            WHEN 'Sunday' THEN 7
-        END;
-    """,
     "carrier_revenue_orders_distribution": """
     SELECT
         fo.carrier,

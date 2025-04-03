@@ -6,7 +6,6 @@ from flask import Blueprint, request, jsonify, render_template, redirect, url_fo
 from flask_login import current_user, login_required
 from sqlalchemy import create_engine, text
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 import gc
 from celeryconfig import PROD_DB_URI, DWH_DB_URI
@@ -261,7 +260,7 @@ def get_orders_heatmap():
         data = [heatmap_trace]
 
         layout = go.Layout(
-            title="Distribúcia objednávok počas týždňa",
+            title="Vytvorenie objednávok počas týždňa",
             height=400,
             xaxis=dict(
                 title="",
@@ -296,45 +295,52 @@ def get_orders_heatmap():
 def get_carrier_revenue_orders_distribution():
     current_date, filter_type, filter_value, range_end, range_start = get_date_range_filter()
 
-    query = apply_period_filter(dashboard_queries["carrier_revenue_orders_distribution"], current_date, filter_type, filter_value, range_start, range_end)
+    query = apply_period_filter(dashboard_queries["carrier_revenue_orders_distribution"],
+                                current_date, filter_type, filter_value, range_start, range_end)
 
     with dwh_engine.connect() as conn:
         carrier_df = pd.read_sql_query(text(query), conn)
         carrier_df['carrier'] = carrier_df['carrier'].fillna('Neuvedené')
 
     try:
-        area_revenue = go.Scatter(
+        bar_revenue = go.Bar(
             x=carrier_df['carrier'],
             y=carrier_df['total_revenue'],
-            fill='tozeroy',
-            mode='lines+markers',
             name='Príjmy',
-            line=dict(color='rgba(0, 100, 200, 0.7)', width=2)
+            marker=dict(color='rgba(0, 100, 200, 0.7)'),
+            offsetgroup='1',
         )
 
-        area_count = go.Scatter(
+        bar_count = go.Bar(
             x=carrier_df['carrier'],
             y=carrier_df['total_count'],
-            fill='tozeroy',
-            mode='lines+markers',
             name='Objednávky',
-            line=dict(color='rgba(255, 150, 0, 0.6)', width=2),
+            marker=dict(color='rgba(255, 150, 0, 0.6)'),
             yaxis='y2',
+            offsetgroup='2',
         )
 
-        data = [area_revenue, area_count,]
+        data = [bar_revenue, bar_count]
 
         layout = go.Layout(
             title='Príjmy / objednávky podľa dopravcu',
+            barmode='group',
             height=400,
-            xaxis=dict(title="Dopravca"),
+            xaxis=dict(title="Dopravca", type="category"),
             yaxis=dict(title="Príjmy"),
             yaxis2=dict(
                 title="Objednávky",
                 overlaying='y',
-                side='right'
+                side='right',
             ),
             autosize=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="center",
+                x=0.5,
+            ),
         )
 
         fig = go.Figure(data=data, layout=layout)
@@ -412,11 +418,10 @@ def get_market_group_revenue_distribution():
             labels=tmgr_df['market_group'],
             parents=tmgr_df['parent'],
             values=tmgr_df['total_revenue'],
-            hoverinfo="label+value+percent parent",
-            textinfo="label+value+percent parent",
-            marker=dict(
-                line=dict(width=0),
-            ),
+            hovertemplate='<b>%{label}</b><br>Príjmy: %{value:,.0f} €<br>Podiel: %{percentParent:.1%}<extra></extra>',
+            texttemplate='<b>%{label}</b><br>%{value:,.0f} €<br>100,0%' if len(tmgr_df) < 2 else '<b>%{label}</b><br>%{value:,.0f} €<br>%{percentParent:.1%}',
+            marker=dict(line=dict(width=0),),
+            branchvalues="total",
         )
 
         data = [treemap_trace,]
@@ -444,7 +449,7 @@ def get_gender_distribution():
 
     with dwh_engine.connect() as conn:
         gender_df = pd.read_sql_query(text(query), conn)
-        gender_df['gender'] = gender_df['gender'].fillna('Neuvedené')
+        gender_df['gender'] = gender_df['gender'].replace({'Pán': 'Muž', 'Pani': 'Žena'}).fillna('Neuvedené')
 
     try:
         pie_trace = go.Pie(

@@ -7,7 +7,7 @@ from celeryconfig import STAGE_DB_URI, DWH_DB_URI
 
 pass_mode = True
 
-def test_fact_etl(app, client, auth_headers):
+def check_migration(app, client, auth_headers):
     stage_engine = create_engine(STAGE_DB_URI)
     dwh_engine = create_engine(DWH_DB_URI)
 
