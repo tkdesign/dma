@@ -193,12 +193,6 @@ def create_report():
     query = apply_period_filter(query, current_date, date_filter_type, date_filter_value, range_start, range_end)
     query = query.format(group_filter=" AND ".join(where_clause))
 
-    prep_query = reports_queries[report_type].get("prep_query")
-    if prep_query:
-        for i in range(len(prep_query)):
-            prep_query[i] = apply_period_filter(prep_query[i], current_date, date_filter_type, date_filter_value, range_start, range_end)
-            prep_query[i] = prep_query[i].format(group_filter=" AND ".join(where_clause))
-
     parameters = {
         "user_id": current_user.id,
         "report_type": report_type,
@@ -206,7 +200,6 @@ def create_report():
         "report_data_type": reports_queries[report_type]["data_type"] if "data_type" in reports_queries[report_type] else "diagram",
         "report_diagram_type": reports_queries[report_type]["diagram_type"] if "diagram_type" in reports_queries[report_type] else "bar",
         "show_diagram_table": reports_queries[report_type]["show_diagram_table"] if "show_diagram_table" in reports_queries[report_type] else True,
-        "prep_query": prep_query,
         "query": query,
         "filters": {
             "date_filter_type": date_filter_type,

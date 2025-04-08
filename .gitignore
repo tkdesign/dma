@@ -6,3 +6,4 @@
 !/reports/files/.gitkeep
 celeryconfig.py
 config.py
+/check_etl/check_migration.py

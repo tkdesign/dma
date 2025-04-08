@@ -486,7 +486,6 @@ def build_report_task(self, *args, **kwargs):
     report_data_type = args[0].get("report_data_type")
     report_diagram_type = args[0].get("report_diagram_type")
     show_diagram_table = args[0].get("show_diagram_table")
-    prep_query = args[0].get("prep_query")
     query = args[0].get("query")
     report_filters = args[0].get("filters")
     parameters = {
@@ -518,14 +517,6 @@ def build_report_task(self, *args, **kwargs):
 
         try:
             with dwh_engine.connect().execution_options(stream_results=True) as conn:
-                if isinstance(prep_query, list) is list and len(prep_query) > 0:
-                    for query in prep_query:
-                        conn.execute(text(query))
-
-                        if self.is_aborted():
-                            print("Úloha zrušená")
-                            return
-
                 first_chunk = True
                 for chunk in pd.read_sql_query(text(query), con=conn, chunksize=chunksize):
                     result["total_rows"] += chunk.shape[0]
@@ -557,13 +548,6 @@ def build_report_task(self, *args, **kwargs):
                           parameters=json.dumps(parameters))
     else:
         with dwh_engine.connect() as conn:
-            if type(prep_query) is list and len(prep_query) > 0:
-                for query in prep_query:
-                    conn.execute(text(query))
-                    if self.is_aborted():
-                        print("Úloha zrušená")
-                        return
-
             df = pd.read_sql_query(text(query), conn)
         if self.is_aborted():
             print("Úloha zrušená")

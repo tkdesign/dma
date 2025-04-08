@@ -190,7 +190,7 @@ reports_queries = {
         "show_diagram_table": True,
         "query": """
         SELECT 
-            FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, dc.birthdate)) / 10) * 10 AS age_range,
+            FLOOR(EXTRACT(YEAR FROM AGE(dd.date, dc.birthdate)) / 10) * 10 AS age_range,
             AVG(fo.paid_tax_incl) AS avg_order_value
         FROM fact_order fo
         JOIN dim_date dd ON fo.date_sk = dd.date_key
