@@ -16,6 +16,7 @@ The application database is organized into three tiers:
 - the data source (an OLTP database in MariaDB),
 - an intermediate layer for the ETL process (in PostgreSQL),
 - an analytical data warehouse (also in PostgreSQL).
+
 In addition, the application uses a Redis database to implement the task queue.
 
 ### Requirements
