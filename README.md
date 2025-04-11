@@ -3,9 +3,9 @@ E-commerce data management application in Python.
 
 ### About
 This web application is designed to manage and visualize sales data in an online store. It includes the following modules:
-- **Migration**: data migration from operational database to analytical database.
 - **Dashboard**: visual analysis of key KPIs.
 - **Reports**: create sales reports.
+- **Migration**: data migration from operational to analytical database.
 - **Users**: user registration and authorization.
 
 The application has two levels of authorization:
@@ -18,6 +18,8 @@ The application database is organized into three tiers:
 - an analytical data warehouse (also in PostgreSQL).
 
 In addition, the application uses a Redis database to implement the task queue.
+
+The structure of the analytical database is based on the Data Mart model in a star schema, with fact and dimension tables.
 
 ### Requirements
 - Python 3.12+
