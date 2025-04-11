@@ -10,7 +10,7 @@
                     {{ form.email(size=32, class='form-control' + (' is-invalid' if form.email.errors else ''), value=form.email.data) }}
                 </div>
                 <fieldset class="border p-3 mb-4 rounded-2">
-                    <legend class="text-primary">Change password</legend>
+                    <legend class="text-primary">Zmeniť heslo</legend>
                     <div class="mb-3">
                         {{ form.new_password.label(class='form-label') }}<br>
                         {{ form.new_password(size=32, class='form-control' + (' is-invalid' if form.new_password.errors else ''), autocomplete='new-password') }}

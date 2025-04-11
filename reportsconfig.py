@@ -166,6 +166,20 @@ dashboard_queries = {
     WHERE dc.active = TRUE AND {valid_customer_filter}
     GROUP BY dc.gender;
     """,
+    "payment_types_revenue_distribution": """
+    SELECT
+        fo.paymenttype,
+        SUM(fo.paid_tax_incl) AS total_revenue
+    FROM fact_order_history foh
+    JOIN dim_date dd 
+        ON foh.date_sk = dd.date_key
+    JOIN fact_order fo 
+        ON fo.orderid_bk = foh.orderid_bk
+    WHERE {filter}
+      AND foh.orderstateid_bk = 2
+    GROUP BY fo.paymenttype
+    ORDER BY total_revenue DESC;
+    """,
 }
 
 reports_queries = {

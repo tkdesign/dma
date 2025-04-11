@@ -123,9 +123,8 @@ def dashboard_index():
 def get_summary():
     current_date, filter_type, filter_value, range_end, range_start = get_date_range_filter()
 
-    query = apply_period_filter(dashboard_queries["carts_query"], current_date, filter_type, filter_value, range_start, range_end)
-
     with dwh_engine.connect() as conn:
+        query = apply_period_filter(dashboard_queries["carts_query"], current_date, filter_type, filter_value, range_start, range_end)
         carts_df = pd.read_sql_query(text(query), conn)
         carts_df['carts_count'] = carts_df['carts_count'].fillna(0)
         carts_count = carts_df['carts_count'].iloc[0]
@@ -175,20 +174,17 @@ def get_period_revenue():
             x=revenue_df['period'],
             y=revenue_df['total_revenue'],
             name='Príjmy',
-            # marker=dict(color='rgb(55, 83, 109)')
         )
 
         x = np.arange(len(revenue_df))
         y = revenue_df['total_revenue'].values
 
-        slope, intercept = 0, 0
-
-        if len(x) < 2:
-            intercept = y[0] if len(y) > 0 else 0
-        elif len(y) > 0:
-            slope, intercept = np.polyfit(x, y, 1)
-
-        revenue_df['lin_reg'] = slope * x + intercept
+        if len(x) < 2 or len(y) < 2:
+            c = y[0] if len(y) > 0 else 0
+            z = np.poly1d([0]) + c
+        else:
+            z = np.poly1d(np.polyfit(x, y, 1))
+        revenue_df['lin_reg'] = z(x)
 
         trend_trace_lr = go.Scatter(
             x=revenue_df['period'],
@@ -216,6 +212,13 @@ def get_period_revenue():
                 domain=[0, 1],
             ),
             autosize=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="center",
+                x=0.5,
+            ),
         )
 
         fig = go.Figure(data=data, layout=layout)
@@ -370,7 +373,6 @@ def get_top_manufacturer_revenue_distribution():
             y=tmr_df['manufacturer'],
             orientation='h',
             name='Príjmy',
-            # marker=dict(color='rgb(55, 83, 109)')
         )
 
         data = [h_bar_trace,]
@@ -476,6 +478,109 @@ def get_gender_distribution():
         return jsonify({})
 
     del gender_df
+    gc.collect()
+
+    return Response(fig.to_json(), content_type='application/json')
+
+@dashboard_blueprint.route('/get-sales-funnel', methods=['GET'])
+@login_required
+def get_sales_funnel():
+    current_date, filter_type, filter_value, range_end, range_start = get_date_range_filter()
+
+    with dwh_engine.connect() as conn:
+        query = apply_period_filter(dashboard_queries["carts_query"], current_date, filter_type, filter_value, range_start, range_end)
+        carts_df = pd.read_sql_query(text(query), conn)
+        carts_df['carts_count'] = carts_df['carts_count'].fillna(0)
+        carts_count = carts_df['carts_count'].iloc[0]
+        del carts_df
+
+        orders_query = apply_period_filter(dashboard_queries["orders_query"], current_date, filter_type, filter_value, range_start, range_end)
+        orders_df = pd.read_sql_query(text(orders_query), conn)
+        orders_df['orders_count'] = orders_df['orders_count'].fillna(0)
+        orders_count = int(orders_df['orders_count'].iloc[0])
+        del orders_df
+
+        orders_paid_query = apply_period_filter(dashboard_queries["orders_paid_query"], current_date, filter_type, filter_value, range_start, range_end)
+        orders_paid_df = pd.read_sql_query(text(orders_paid_query), conn)
+        orders_paid_df['orders_paid_count'] = orders_paid_df['orders_paid_count'].fillna(0)
+        orders_paid_count = int(orders_paid_df['orders_paid_count'].iloc[0])
+        del orders_paid_df
+
+    try:
+
+
+        funnel_trace = go.Funnel(
+            name="Predajný lievik",
+            y=["Nákupné košíky", "Objednávky", "Zaplatené objednávky"],
+            x=[carts_count, orders_count, orders_paid_count],
+            texttemplate='<b>%{y}</b><br>%{x} ks<br>'
+                         'z prvéj fázy: %{percentInitial:.1%}<br>'
+                         'z predchádzajúcej: %{percentPrevious:.1%}',
+            hovertemplate='<b>%{y}</b><br>%{x} ks<br>'
+                          'z prvej fázy: %{percentInitial:.1%}<br>'
+                          'z predchádzajúcej: %{percentPrevious:.1%}<extra></extra>',
+            textposition="inside",
+        )
+
+        data = [funnel_trace,]
+
+        layout = go.Layout(
+            title="Predajný lievik",
+            height=400,
+            grid=dict(rows=1, columns=1, pattern='independent'),
+            xaxis=dict(title="Počet"),
+            yaxis=dict(title="",showticklabels=False),
+            autosize=True
+        )
+
+        fig = go.Figure(data=data, layout=layout)
+    except Exception as e:
+        return jsonify({})
+
+    gc.collect()
+
+    return Response(fig.to_json(), content_type='application/json')
+
+@dashboard_blueprint.route('/get-payment-types-revenue-distribution', methods=['GET'])
+@login_required
+def get_payment_types_revenue_distribution():
+    current_date, filter_type, filter_value, range_end, range_start = get_date_range_filter()
+
+    query = apply_period_filter(dashboard_queries["payment_types_revenue_distribution"], current_date, filter_type, filter_value, range_start, range_end)
+
+    with dwh_engine.connect() as conn:
+        tptr_df = pd.read_sql_query(text(query), conn)
+
+    try:
+        h_bar_trace = go.Bar(
+            x=tptr_df['total_revenue'],
+            y=tptr_df['paymenttype'],
+            orientation='h',
+            name='Príjmy',
+        )
+
+        data = [h_bar_trace,]
+
+        layout = go.Layout(
+            title='Spôsoby platby podľa objemu predaja',
+            height=400,
+            grid=dict(rows=1, columns=1, pattern='independent'),
+            xaxis=dict(
+                title="Príjmy",
+                domain=[0, 1]
+            ),
+            yaxis=dict(
+                title="Spôsob platby",
+                domain=[0, 1],
+                autorange="reversed",
+            ),
+            autosize=True,
+        )
+
+        fig = go.Figure(data=data, layout=layout)
+    except Exception as e:
+        return jsonify({})
+
     gc.collect()
 
     return Response(fig.to_json(), content_type='application/json')

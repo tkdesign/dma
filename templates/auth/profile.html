@@ -27,7 +27,7 @@
                     {{ form.email(size=32, class='form-control', value=form.email.data, disabled=True) }}
                 </div>
                 <fieldset class="border p-3 mb-4 rounded-2">
-                    <legend class="text-primary">Change password</legend>
+                    <legend class="text-primary">Zmeniť heslo</legend>
                     <div class="mb-3">
                         {{ form.current_password.label(class='form-label') }}<br>
                         {{ form.current_password(size=32, class='form-control' + (' is-invalid' if form.current_password.errors else ''), autocomplete='new-password') }}

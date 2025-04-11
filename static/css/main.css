@@ -7,6 +7,10 @@ main {
     padding-bottom: 1rem;
 }
 
+.filter-container {
+    top: 56px;
+}
+
 .card-with-diagram-body {
     padding: 5px;
 }
@@ -21,4 +25,13 @@ main {
 
 .table-container {
     width: 100%;
+}
+
+#carts-count, #orders-count, #total-revenue, #conversion-rate {
+    font-size: 2rem;
+}
+
+.card-numeric-subtitle {
+    font-size: 1.3rem;
+    color: #6c757d;
 }

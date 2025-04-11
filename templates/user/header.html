@@ -18,17 +18,6 @@
     <link href="{{ url_for('static', filename='assets/tabulator/css/tabulator_bootstrap5.min.css') }}" rel="stylesheet">
     {% endif %}
     <title>{{ title or 'DMA' }}</title>
-    {% if page == 'dashboard' %}
-    <style>
-    #carts-count, #orders-count, #total-revenue, #conversion-rate {
-        font-size: 2rem;
-    }
-    .card-numeric-subtitle {
-        font-size: 1.3rem;
-        color: #6c757d;
-    }
-    </style>
-    {% endif %}
 </head>
 <body>
     <header class="sticky-top">
