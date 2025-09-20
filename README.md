@@ -1,10 +1,10 @@
 # dma
-E-commerce data management application in Python.
+E-commerce data management web application in Python.
 
 ### About
 This web application is designed to manage and visualize sales data in an online store. It includes the following modules:
 - **Dashboard**: visual analysis of KPIs.
-- **Reports**: create sales reports.
+- **Reports**: create reports for analytic
 - **Migration**: data migration from operational to analytical database.
 - **Users**: user registration and authorization.
 
@@ -13,7 +13,7 @@ The application has two levels of authorization:
 - Registered user authentication.
 
 The application database is organized into three tiers:
-- the data source (an OLTP database in MariaDB),
+- the data source (a MariaDB database restored from an OLTP dump, e.g. using mysqldump and mysql import),
 - an intermediate layer for the ETL process (in PostgreSQL),
 - an analytical data warehouse (also in PostgreSQL).
 
@@ -27,5 +27,10 @@ The structure of the analytical database is based on the Data Mart model in a st
 - Redis 7.4+
 - MariaDB 10.4+
 
-### Copyrights
-Author: Petr Kovalenko.
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+---
+
+Author: Petr Kovalenko
