@@ -4,7 +4,7 @@ E-commerce data management web application in Python.
 ### About
 This web application is designed to manage and visualize sales data in an online store. It includes the following modules:
 - **Dashboard**: visual analysis of KPIs.
-- **Reports**: create reports for analytic
+- **Reports**: create and view analytical reports.
 - **Migration**: data migration from operational to analytical database.
 - **Users**: user registration and authorization.
 
